@@ -12,7 +12,6 @@ public:
     string name;
     int index;
     int bandwidth;
-
     Node(string name, int index) {
         this->name = name;
         this->index = index;
@@ -23,6 +22,7 @@ class User {
 public:
     string name;
     int index;
+    vector<int> available;
     User(string name, int index) {
         this->name = name;
         this->index = index;
@@ -63,7 +63,8 @@ void read_qos() {
             is_first = false;
         }
         else {
-            users.emplace_back(User(str, users.size()));
+            int pos = users.size();
+            users.emplace_back(User(str, pos));
         }
     }
     //    for (int i = 0; i < users.size(); ++i) {
@@ -74,15 +75,19 @@ void read_qos() {
         stringstream ss(tmp_line);
         string str;
         vector<int> lineArray;
-        int is_first = true;
+        int cnt = -1;
         while (getline(ss, str, ',')) {
-            if (is_first) {
+            if (cnt == -1) {
                 nodes.emplace_back(Node(str, nodes.size()));
-                is_first = false;
             }
             else {
-                lineArray.push_back(atoi(str.c_str()));
+                int current_qos = atoi(str.c_str());
+                lineArray.push_back(current_qos);
+                if (current_qos < QOS_MAX) {
+                    users[cnt].available.emplace_back(nodes.size() - 1);
+                }
             }
+            cnt++;
         }
         qos.emplace_back(lineArray);
     }
@@ -168,6 +173,10 @@ void read_conf(){
     }
 }
 
+void baseline() {
+
+}
+
 //vector<Node> nodes;
 //vector<User> users;
 //vector<Time> times;
@@ -177,33 +186,33 @@ void read_conf(){
 
 int main() {
 
-//    read_conf();
-//    cout << QOS_MAX << endl;
+    read_conf();
+    cout << QOS_MAX << endl;
 
-//    read_qos();
-//    read_demand();
-//    read_bandwidth();
-//
-//    cout << "read demand.csv" << endl;
-//    logger_mat2d(demand);
-//
-//    cout << "read qos.csv" << endl;
-//    logger_mat2d(qos);
-//
-//    cout << "nodes" << endl;
-//    for (int i = 0; i < nodes.size(); ++i) {
-//        cout << nodes[i].name << " " << nodes[i].index << " " << nodes[i].bandwidth << endl;
-//    }
-//
-//    cout << "users" << endl;
-//    for (int i = 0; i < users.size(); ++i) {
-//        cout << users[i].name << " " << users[i].index << endl;
-//    }
-//
-//    cout << "times" << endl;
-//    for (int i = 0; i < times.size(); ++i) {
-//        cout << times[i].name << " " << times[i].index << endl;
-//    }
+    read_qos();
+    read_demand();
+    read_bandwidth();
+
+    cout << "read demand.csv" << endl;
+    logger_mat2d(demand);
+
+    cout << "read qos.csv" << endl;
+    logger_mat2d(qos);
+
+    cout << "nodes" << endl;
+    for (int i = 0; i < nodes.size(); ++i) {
+        cout << nodes[i].name << " " << nodes[i].index << " " << nodes[i].bandwidth << endl;
+    }
+
+    cout << "users" << endl;
+    for (int i = 0; i < users.size(); ++i) {
+        cout << users[i].name << " " << users[i].index << endl;
+    }
+
+    cout << "times" << endl;
+    for (int i = 0; i < times.size(); ++i) {
+        cout << times[i].name << " " << times[i].index << endl;
+    }
 
 
     return 0;
