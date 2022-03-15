@@ -3,57 +3,34 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <ctime>
 #include "utils.h"
+
+// [a,b]的随机整数
+#define random(a,b) (rand() % ( b - a + 1) + a)
 
 using namespace std;
 
-class Node {
-public:
-    string name;
-    int index;
-    int bandwidth;
-    Node(string name, int index) {
-        this->name = name;
-        this->index = index;
-    }
-};
 
-class User {
-public:
-    string name;
-    int index;
-    vector<int> available;
-    User(string name, int index) {
-        this->name = name;
-        this->index = index;
-    }
-};
-
-class Time {
-public:
-    string name;
-    int index;
-    Time(string name, int index) {
-        this->name = name;
-        this->index = index;
-    }
-};
-
-string CONFIG_PATH = "../data/config.ini";
-string DATA_PATH = "../data/";
+class Node;
+class User;
+class Time;
+string CONFIG_PATH = "./data/config.ini";
+string DATA_PATH = "./data/";
+string SOLUTION_PATH = "./output/solution.txt";
 int QOS_MAX;
-vector<Node> nodes;
-vector<User> users;
-vector<Time> times;
-vector<vector<int>> qos;
-vector<vector<int>> demand;
+vector<Node> g_nodes;
+vector<User> g_users;
+vector<Time> g_times;
+vector<vector<int>> g_qos;
+vector<vector<int>> g_demand;
 
-// 初始化 qos users nodes
+// 初始化 g_qos g_users g_nodes
 void read_qos() {
     std::ifstream data;
     data.open(DATA_PATH + "qos.csv");
     std::string tmp_line;
-    // users
+    // g_users
     getline(data, tmp_line);
     stringstream ss(tmp_line);
     string str;
@@ -63,14 +40,14 @@ void read_qos() {
             is_first = false;
         }
         else {
-            int pos = users.size();
-            users.emplace_back(User(str, pos));
+            int pos = g_users.size();
+            g_users.emplace_back(User(str, pos));
         }
     }
-    //    for (int i = 0; i < users.size(); ++i) {
-    //        cout << users[i].name << " " << users[i].index << endl;
+    //    for (int i = 0; i < g_users.size(); ++i) {
+    //        cout << g_users[i].name << " " << g_users[i].index << endl;
     //    }
-    // qos
+    // g_qos
     while (getline(data, tmp_line)) {
         stringstream ss(tmp_line);
         string str;
@@ -78,24 +55,24 @@ void read_qos() {
         int cnt = -1;
         while (getline(ss, str, ',')) {
             if (cnt == -1) {
-                nodes.emplace_back(Node(str, nodes.size()));
+                g_nodes.emplace_back(Node(str, g_nodes.size()));
             }
             else {
                 int current_qos = atoi(str.c_str());
                 lineArray.push_back(current_qos);
                 if (current_qos < QOS_MAX) {
-                    users[cnt].available.emplace_back(nodes.size() - 1);
+                    g_users[cnt].available.emplace_back(g_nodes.size() - 1);
                 }
             }
             cnt++;
         }
-        qos.emplace_back(lineArray);
+        g_qos.emplace_back(lineArray);
     }
     data.close();
     data.clear();
 }
 
-// 初始化 times
+// 初始化 g_times
 void read_demand() {
     std::ifstream data;
     data.open(DATA_PATH + "demand.csv");
@@ -108,24 +85,24 @@ void read_demand() {
         int is_first = true;
         while (getline(ss, str, ',')) {
             if (is_first) {
-                times.emplace_back(Time(str, times.size()));
+                g_times.emplace_back(Time(str, g_times.size()));
                 is_first = false;
             }
             else {
                 lineArray.push_back(atoi(str.c_str()));
             }
         }
-        demand.emplace_back(lineArray);
+        g_demand.emplace_back(lineArray);
     }
     data.close();
     data.clear();
-//        for (int i = 0; i < times.size(); ++i) {
-//            cout << times[i].name << " " << times[i].index << endl;
+//        for (int i = 0; i < g_times.size(); ++i) {
+//            cout << g_times[i].name << " " << g_times[i].index << endl;
 //        }
 
 }
 
-// 初始化 nodes
+// 初始化 g_nodes
 void read_bandwidth() {
     std::ifstream data;
     data.open(DATA_PATH + "site_bandwidth.csv");
@@ -141,17 +118,20 @@ void read_bandwidth() {
                 is_first = false;
             }
             else {
-                nodes[cnt++].bandwidth = atoi(str.c_str());
+                int idx = cnt++;
+                g_nodes[idx].bandwidth = atoi(str.c_str());
+                g_nodes[idx].remain = g_nodes[idx].bandwidth;
             }
         }
     }
     data.close();
     data.clear();
-//    for (int i = 0; i < nodes.size(); ++i) {
-//        cout << nodes[i].name << " " << nodes[i].index << " " << nodes[i].bandwidth <<endl;
+//    for (int i = 0; i < g_nodes.size(); ++i) {
+//        cout << g_nodes[i].name << " " << g_nodes[i].index << " " << g_nodes[i].bandwidth <<endl;
 //    }
 }
 
+// 读取 qos max
 void read_conf(){
     std::ifstream config;
     config.open(CONFIG_PATH);
@@ -173,47 +153,91 @@ void read_conf(){
     }
 }
 
-void baseline() {
-
+// 重置每个服务器的带宽
+void reset_bandwidth() {
+    for (auto &i : g_nodes) {
+        i.remain = i.bandwidth;
+    }
 }
 
-//vector<Node> nodes;
-//vector<User> users;
-//vector<Time> times;
-//vector<vector<int>> qos;
-//vector<vector<int>> demand;
+// 均分
+void baseline() {
+    srand((int)time(0));
+    // 对于每个时间点
+    for (int i = 0; i < g_demand.size(); ++i) {
+        // 对于每个用户
+        for (int j = 0; j < g_demand[i].size(); ++j) {
+            // 均分用户流量到所有服务器
+            int user_demand = g_demand[i][j];
+            int num_available = g_users[j].available.size();
+            // 每个 node 的流量
+            int singe = user_demand / num_available;
+            // 余量随机分配
+            int random_index = random(0, num_available - 1);
+            // 更新 node 的剩余量
+            vector<Node> used_nodes;
+            for (int k = 0; k < num_available; ++k) {
+                int node_index = g_users[j].available[k];
+                if (k != random_index) {
+                    g_nodes[node_index].remain -= singe;
+                    g_nodes[node_index].now_used = singe;
+                }
+                else {
+                    int left = user_demand - singe * (num_available - 1);
+                    g_nodes[node_index].remain -= left;
+                    g_nodes[node_index].now_used = left;
+                }
+                used_nodes.emplace_back(g_nodes[node_index]);
+            }
+
+            // 输出
+            logger_line(g_users[j], used_nodes);
+        }
+        // 重置每个服务器的带宽
+        reset_bandwidth();
+    }
+}
+
+//vector<Node> g_nodes;
+//vector<User> g_users;
+//vector<Time> g_times;
+//vector<vector<int>> g_qos;
+//vector<vector<int>> g_demand;
 
 
 int main() {
 
+    freopen(SOLUTION_PATH.c_str(), "w", stdout);
+
     read_conf();
-    cout << QOS_MAX << endl;
+//    cout << QOS_MAX << endl;
 
     read_qos();
     read_demand();
     read_bandwidth();
 
-    cout << "read demand.csv" << endl;
-    logger_mat2d(demand);
+//    cout << "read g_demand.csv" << endl;
+//    logger_mat2d(g_demand);
 
-    cout << "read qos.csv" << endl;
-    logger_mat2d(qos);
+//    cout << "read g_qos.csv" << endl;
+//    logger_mat2d(g_qos);
 
-    cout << "nodes" << endl;
-    for (int i = 0; i < nodes.size(); ++i) {
-        cout << nodes[i].name << " " << nodes[i].index << " " << nodes[i].bandwidth << endl;
-    }
-
-    cout << "users" << endl;
-    for (int i = 0; i < users.size(); ++i) {
-        cout << users[i].name << " " << users[i].index << endl;
-    }
-
-    cout << "times" << endl;
-    for (int i = 0; i < times.size(); ++i) {
-        cout << times[i].name << " " << times[i].index << endl;
-    }
-
+//    cout << "g_nodes" << endl;
+//    for (int i = 0; i < g_nodes.size(); ++i) {
+//        cout << g_nodes[i].name << " " << g_nodes[i].index << " " << g_nodes[i].bandwidth << endl;
+//    }
+//
+//    cout << "g_users" << endl;
+//    for (int i = 0; i < g_users.size(); ++i) {
+//        cout << g_users[i].name << " " << g_users[i].index << endl;
+//    }
+//
+//    cout << "g_times" << endl;
+//    for (int i = 0; i < g_times.size(); ++i) {
+//        cout << g_times[i].name << " " << g_times[i].index << endl;
+//    }
+//
+    baseline();
 
     return 0;
 }
