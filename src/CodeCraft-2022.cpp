@@ -160,6 +160,17 @@ void reset_bandwidth() {
     }
 }
 
+// 判断给定节点哪些能放下所需流量
+vector<int> final_nodes(vector<int> all, int t) {
+    vector<int> final;
+    for (int i = 0; i < all.size(); ++i) {
+        if (g_nodes[all[i]].remain >= (t + 1)) {
+            final.emplace_back(all[i]);
+        }
+    }
+    return final;
+}
+
 // 均分
 void baseline() {
     srand((int)time(0));
@@ -169,15 +180,28 @@ void baseline() {
         for (int j = 0; j < g_demand[i].size(); ++j) {
             // 均分用户流量到所有服务器
             int user_demand = g_demand[i][j];
+            vector<int> temp(g_users[j].available);
             int num_available = g_users[j].available.size();
-            // 每个 node 的流量
             int singe = user_demand / num_available;
-            // 余量随机分配
+            vector<int> final_available;
+            while (true) {
+                // 每个 node 的流量
+                singe = user_demand / num_available;
+                final_available = final_nodes(temp, singe);
+                num_available = final_available.size();
+                if (temp.size() == final_available.size()) {
+                    break;
+                }
+                temp = final_available;
+            }
+            
+            // 小数部分量随机分配
             int random_index = random(0, num_available - 1);
+
             // 更新 node 的剩余量
             vector<Node> used_nodes;
             for (int k = 0; k < num_available; ++k) {
-                int node_index = g_users[j].available[k];
+                int node_index = final_available[k];
                 if (k != random_index) {
                     g_nodes[node_index].remain -= singe;
                     g_nodes[node_index].now_used = singe;
@@ -189,7 +213,6 @@ void baseline() {
                 }
                 used_nodes.emplace_back(g_nodes[node_index]);
             }
-
             // 输出
             logger_line(g_users[j], used_nodes);
         }
