@@ -15,9 +15,9 @@ using namespace std;
 class Node;
 class User;
 class Time;
-string CONFIG_PATH = "./data/config.ini";
-string DATA_PATH = "./data/";
-string SOLUTION_PATH = "./output/solution.txt";
+string CONFIG_PATH = "/data/config.ini";
+string DATA_PATH = "/data/";
+string SOLUTION_PATH = "/output/solution.txt";
 int QOS_MAX;
 vector<Node> g_nodes;
 vector<User> g_users;
@@ -218,7 +218,7 @@ void baseline() {
                 for (int k = 0; k < ratio.size(); ++k) {
                     Node& now_node = g_nodes[temp[k]];
                     // 满足
-                    if (now_node.remain >= (ratio[k] + 2)) {
+                    if (now_node.remain >= ratio[k]) {
                         satisfied_idx.emplace_back(now_node.index);
                     }
                     // 不满足
@@ -235,16 +235,25 @@ void baseline() {
                 // 如果都满足比例分配则跳出循环
                 if (unsatisfied_idx.empty()) {
                     int num_available = ratio.size();
-                    int random_idx = random(0, num_available - 1);
+                    // 按比例分
                     for (int k = 0; k < num_available; ++k) {
-                        if (k != random_idx) {
-                            g_nodes[satisfied_idx[k]].now_used = ratio[k] + 1;
-                            a_little_left -= ratio[k] + 1;
-                            used_nodes.emplace_back(g_nodes[satisfied_idx[k]]);
+                        g_nodes[satisfied_idx[k]].now_used = ratio[k];
+                        g_nodes[satisfied_idx[k]].remain -= ratio[k];
+                        a_little_left -= ratio[k];
+                        used_nodes.emplace_back(g_nodes[satisfied_idx[k]]);
+                    }
+                    // 分剩余
+                    for (int l = 0; l < used_nodes.size(); ++l) {
+                        if (used_nodes[l].remain >= a_little_left) {
+                            g_nodes[used_nodes[l].index].remain -= a_little_left;
+                            used_nodes[l].now_used += a_little_left;
+                            break;
+                        }
+                        else {
+                            used_nodes[l].now_used += g_nodes[used_nodes[l].index].remain;
+                            g_nodes[used_nodes[l].index].remain = 0;
                         }
                     }
-                    g_nodes[satisfied_idx[random_idx]].now_used = a_little_left;
-                    used_nodes.emplace_back(g_nodes[satisfied_idx[random_idx]]);
                     break;
                 }
                 temp = satisfied_idx;
