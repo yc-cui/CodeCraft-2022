@@ -164,11 +164,25 @@ void reset_bandwidth() {
 vector<int> final_nodes(vector<int> all, int t) {
     vector<int> final;
     for (int i = 0; i < all.size(); ++i) {
-        if (g_nodes[all[i]].remain >= (t + 1)) {
+        if (g_nodes[all[i]].remain >= (t + 135)) {
             final.emplace_back(all[i]);
         }
     }
     return final;
+}
+
+// 给定 nodes 的 remain 的比例
+vector<int> ratio_nodes(vector<int> all, int demand) {
+    double sum = 0;
+    for (int i = 0; i < all.size(); ++i) {
+        sum += g_nodes[all[i]].remain;
+    }
+    vector<int> ratio;
+    ratio.reserve(all.size());
+    for (int j = 0; j < all.size(); ++j) {
+        ratio.emplace_back((double)g_nodes[all[j]].remain / sum * (double)demand);
+    }
+    return ratio;
 }
 
 // 均分
@@ -180,41 +194,68 @@ void baseline() {
         for (int j = 0; j < g_demand[i].size(); ++j) {
             // 均分用户流量到所有服务器
             int user_demand = g_demand[i][j];
-            vector<int> temp(g_users[j].available);
-            int num_available = g_users[j].available.size();
-            int singe = user_demand / num_available;
-            vector<int> final_available;
-            while (true) {
-                // 每个 node 的流量
-                singe = user_demand / num_available;
-                final_available = final_nodes(temp, singe);
-                num_available = final_available.size();
-                if (temp.size() == final_available.size()) {
-                    break;
-                }
-                temp = final_available;
-            }
-            
-            // 小数部分量随机分配
-            int random_index = random(0, num_available - 1);
-
-            // 更新 node 的剩余量
-            vector<Node> used_nodes;
-            for (int k = 0; k < num_available; ++k) {
-                int node_index = final_available[k];
-                if (k != random_index) {
-                    g_nodes[node_index].remain -= singe;
-                    g_nodes[node_index].now_used = singe;
+            int a_little_left = user_demand;
+            if (user_demand == 0) {
+                vector<Node> nodes;
+                if (i == 0 && j == 0) {
+                    logger_line1(g_users[j], nodes);
                 }
                 else {
-                    int left = user_demand - singe * (num_available - 1);
-                    g_nodes[node_index].remain -= left;
-                    g_nodes[node_index].now_used = left;
+                    logger_line(g_users[j], nodes);
                 }
-                used_nodes.emplace_back(g_nodes[node_index]);
+                continue;
+            }
+            vector<int> temp(g_users[j].available);
+            // 已分配，将会被输出的 node
+            vector<Node> used_nodes;
+            while (true) {
+                // 计算满足 qos 的服务器的 remain 的比例
+                vector<int> ratio = ratio_nodes(temp, user_demand);
+                // remain 不够的下标
+                vector<int> unsatisfied_idx;
+                // remain 够的下标
+                vector<int> satisfied_idx;
+                for (int k = 0; k < ratio.size(); ++k) {
+                    Node& now_node = g_nodes[temp[k]];
+                    // 满足
+                    if (now_node.remain >= (ratio[k] + 2)) {
+                        satisfied_idx.emplace_back(now_node.index);
+                    }
+                    // 不满足
+                    else {
+                        // 将该服务器所有剩余带宽分配出去
+                        user_demand -= now_node.remain;
+                        now_node.now_used = now_node.remain;
+                        a_little_left -= now_node.remain;
+                        now_node.remain = 0;
+                        unsatisfied_idx.emplace_back(now_node.index);
+                        used_nodes.emplace_back(Node(now_node));
+                    }
+                }
+                // 如果都满足比例分配则跳出循环
+                if (unsatisfied_idx.empty()) {
+                    int num_available = ratio.size();
+                    int random_idx = random(0, num_available - 1);
+                    for (int k = 0; k < num_available; ++k) {
+                        if (k != random_idx) {
+                            g_nodes[satisfied_idx[k]].now_used = ratio[k] + 1;
+                            a_little_left -= ratio[k] + 1;
+                            used_nodes.emplace_back(g_nodes[satisfied_idx[k]]);
+                        }
+                    }
+                    g_nodes[satisfied_idx[random_idx]].now_used = a_little_left;
+                    used_nodes.emplace_back(g_nodes[satisfied_idx[random_idx]]);
+                    break;
+                }
+                temp = satisfied_idx;
             }
             // 输出
-            logger_line(g_users[j], used_nodes);
+            if (i == 0 && j == 0) {
+                logger_line1(g_users[j], used_nodes);
+            }
+            else {
+                logger_line(g_users[j], used_nodes);
+            }
         }
         // 重置每个服务器的带宽
         reset_bandwidth();

@@ -59,6 +59,9 @@ void logger_node(Node node) {
 }
 
 void logger_nodes(vector<Node> nodes) {
+    if (nodes.size() == 0) {
+        return;
+    }
     int n = nodes.size();
     for (int i = 0; i < n - 1; ++i) {
         logger_node(nodes[i]);
@@ -68,7 +71,12 @@ void logger_nodes(vector<Node> nodes) {
 }
 
 void logger_line(User user, vector<Node> nodes) {
+    cout << "\n";
     cout << user.name << ":";
     logger_nodes(nodes);
-    cout << endl;
+}
+
+void logger_line1(User user, vector<Node> nodes) {
+    cout << user.name << ":";
+    logger_nodes(nodes);
 }
