@@ -15,9 +15,12 @@ using namespace std;
 class Node;
 class User;
 class Time;
-string CONFIG_PATH = "/data/config.ini";
-string DATA_PATH = "/data/";
-string SOLUTION_PATH = "/output/solution.txt";
+
+string CONFIG_PATH = "./data/config.ini";
+string DATA_PATH = "./data/";
+string SOLUTION_PATH = "./output/solution.txt";
+
+
 int QOS_MAX;
 vector<Node> g_nodes;
 vector<User> g_users;
@@ -160,17 +163,6 @@ void reset_bandwidth() {
     }
 }
 
-// 判断给定节点哪些能放下所需流量
-vector<int> final_nodes(vector<int> all, int t) {
-    vector<int> final;
-    for (int i = 0; i < all.size(); ++i) {
-        if (g_nodes[all[i]].remain >= (t + 135)) {
-            final.emplace_back(all[i]);
-        }
-    }
-    return final;
-}
-
 // 给定 nodes 的 remain 的比例
 vector<int> ratio_nodes(vector<int> all, int demand) {
     double sum = 0;
@@ -185,7 +177,7 @@ vector<int> ratio_nodes(vector<int> all, int demand) {
     return ratio;
 }
 
-// 均分
+// baseline
 void baseline() {
     srand((int)time(0));
     // 对于每个时间点
@@ -311,6 +303,6 @@ int main() {
 //    }
 //
     baseline();
-
+    fclose(stdout);
     return 0;
 }

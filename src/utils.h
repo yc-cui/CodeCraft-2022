@@ -4,8 +4,19 @@
 #pragma once
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
+
+// 字符串两边的\r\n
+string trim(string str) {
+    if (str.empty()) {
+        return "";
+    }
+    str.erase(std::remove(str.begin(), str.end(), '\r'), str.end());
+    str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
+    return str;
+}
 
 class Node {
 public:
@@ -15,7 +26,7 @@ public:
     int remain;
     int now_used;
     Node(string name, int index) {
-        this->name = name;
+        this->name = trim(name);
         this->index = index;
     }
 };
@@ -26,7 +37,7 @@ public:
     int index;
     vector<int> available;
     User(string name, int index) {
-        this->name = name;
+        this->name = trim(name);
         this->index = index;
     }
 };
@@ -36,7 +47,7 @@ public:
     string name;
     int index;
     Time(string name, int index) {
-        this->name = name;
+        this->name = trim(name);
         this->index = index;
     }
 };

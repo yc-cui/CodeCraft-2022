@@ -23,6 +23,6 @@ SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -std=c++11")
 aux_source_directory(. DIR_SRCS)
 
 # 指定生成目标
-add_executable(CodeCraft-2022 ${DIR_SRCS} utils.h)
+add_executable(CodeCraft-2022 ${DIR_SRCS})
 
-set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Debug)
