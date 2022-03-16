@@ -91,3 +91,16 @@ void logger_line1(User user, vector<Node> nodes) {
     cout << user.name << ":";
     logger_nodes(nodes);
 }
+
+// 随机数排列 num: 总长度
+vector<int> randperm(int num) {
+
+    vector<int> temp;
+    for (int i = 0; i < num; ++i) {
+        temp.push_back(i);
+    }
+
+    random_shuffle(temp.begin(), temp.end());
+
+    return temp;
+}

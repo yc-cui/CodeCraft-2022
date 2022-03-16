@@ -16,9 +16,9 @@ class Node;
 class User;
 class Time;
 
-string CONFIG_PATH = "./data/config.ini";
-string DATA_PATH = "./data/";
-string SOLUTION_PATH = "./output/solution.txt";
+string CONFIG_PATH = "/data/config.ini";
+string DATA_PATH = "/data/";
+string SOLUTION_PATH = "/output/solution.txt";
 
 
 int QOS_MAX;
@@ -197,7 +197,16 @@ void baseline() {
                 }
                 continue;
             }
-            vector<int> temp(g_users[j].available);
+            // 随机限制节点，对于这些节点，虽然 qos 满足，但仍不能请求流量
+            float non_restrict = 0.6;
+            int num_useful = g_users[j].available.size() * non_restrict;
+            vector<int> useful_idx = randperm(g_users[j].available.size());
+            vector<int> temp;
+            temp.reserve(num_useful);
+            for (int m = 0; m < num_useful; ++m) {
+                temp.emplace_back(g_users[j].available[useful_idx[m]]);
+            }
+
             // 已分配，将会被输出的 node
             vector<Node> used_nodes;
             while (true) {
@@ -224,6 +233,14 @@ void baseline() {
                         used_nodes.emplace_back(Node(now_node));
                     }
                 }
+                // 如果流量还没被分完，释放被限制的节点
+                if (satisfied_idx.empty()) {
+                    for (int m = num_useful; m < g_users[j].available.size(); ++m) {
+                        temp.emplace_back(g_users[j].available[useful_idx[m]]);
+                    }
+                    continue;
+                }
+
                 // 如果都满足比例分配则跳出循环
                 if (unsatisfied_idx.empty()) {
                     int num_available = ratio.size();
