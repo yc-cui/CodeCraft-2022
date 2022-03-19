@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
-
+#include "math.h"
 using namespace std;
 
 // 字符串两边的\r\n
@@ -17,7 +17,20 @@ string trim(string str) {
     str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
     return str;
 }
-
+void InsertionSort(vector<int>& a, int len)
+{
+    for (int j=1; j<len; j++)
+    {
+        int key = a[j];
+        int i = j-1;
+        while (i>=0 && a[i]>key)
+        {
+            a[i+1] = a[i];
+            i--;
+        }
+        a[i+1] = key;
+    }
+}
 class Node {
 public:
     string name;
@@ -25,10 +38,21 @@ public:
     int bandwidth;
     int remain;
     int now_used;
+    int percent_95;
+    vector<int> available;
+    vector<int> history;
     Node(string name, int index) {
         this->name = trim(name);
         this->index = index;
     }
+    int get_95(){
+        InsertionSort(history,history.size());
+        
+        int index=ceil(history.size()*0.95)-1;
+        percent_95=history[index];
+        return percent_95;
+    }
+
 };
 
 class User {

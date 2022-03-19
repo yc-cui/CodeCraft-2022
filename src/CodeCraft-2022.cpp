@@ -5,7 +5,7 @@
 #include <sstream>
 #include <ctime>
 #include "utils.h"
-
+#include "math.h"
 // [a,b]的随机整数
 #define random(a,b) (rand() % ( b - a + 1) + a)
 
@@ -65,6 +65,7 @@ void read_qos() {
                 lineArray.push_back(current_qos);
                 if (current_qos < QOS_MAX) {
                     g_users[cnt].available.emplace_back(g_nodes.size() - 1);
+                    g_nodes[g_nodes.size() - 1].available.emplace_back(cnt);
                 }
             }
             cnt++;
@@ -177,6 +178,198 @@ vector<int> ratio_nodes(vector<int> all, int demand) {
     return ratio;
 }
 
+void baseline_1(){
+    vector<vector<vector<int> > > output(g_demand.size(), vector<vector<int> > (g_users.size(), vector<int> (g_nodes.size(), 0)));
+    srand((int)time(0));
+    // 对于每个时间点
+    for (int i = 0; i < 1; ++i) {
+        // 对于每个用户
+        for (int i1 = 0; i1 < g_nodes.size(); ++i1) {
+            g_nodes[i1].history.emplace_back(0);
+        }
+        for (int j = 0; j < g_demand[i].size(); ++j) {
+            // 均分用户流量到所有服务器
+            int user_demand = g_demand[i][j];
+            int a_little_left = user_demand;
+            if (user_demand == 0) {
+                vector<Node> nodes;
+                if (i == 0 && j == 0) {
+                    logger_line1(g_users[j], nodes);
+                } else {
+                    logger_line(g_users[j], nodes);
+                }
+                continue;
+            }
+            // 随机限制节点，对于这些节点，虽然 qos 满足，但仍不能请求流量
+            int non_restrict = 1;
+            int num_useful = g_users[j].available.size() * non_restrict;
+            vector<int> useful_idx = randperm(g_users[j].available.size());
+            vector<int> temp;
+            temp.reserve(num_useful);
+            for (int m = 0; m < num_useful; ++m) {
+                temp.emplace_back(g_users[j].available[useful_idx[m]]);
+            }
+            if (i == 0) {
+                // 已分配，将会被输出的 node
+                vector<Node> used_nodes;
+                while (true) {
+                    // 计算满足 qos 的服务器的 remain 的比例
+                    vector<int> ratio = ratio_nodes(temp, user_demand);
+                    // remain 不够的下标
+                    vector<int> unsatisfied_idx;
+                    // remain 够的下标
+                    vector<int> satisfied_idx;
+                    for (int k = 0; k < ratio.size(); ++k) {
+                        Node &now_node = g_nodes[temp[k]];
+                        // 满足
+                        if (now_node.remain >= ratio[k]) {
+                            satisfied_idx.emplace_back(now_node.index);
+                        }
+                            // 不满足
+                        else {
+                            // 将该服务器所有剩余带宽分配出去
+                            user_demand -= now_node.remain;
+                            now_node.now_used = now_node.remain;
+                            a_little_left -= now_node.remain;
+                            now_node.remain = 0;
+                            unsatisfied_idx.emplace_back(now_node.index);
+                            used_nodes.emplace_back(Node(now_node));
+                        }
+                    }
+
+                    // 如果流量还没被分完，释放被限制的节点
+                    if (satisfied_idx.empty()) {
+                        for (int m = num_useful; m < g_users[j].available.size(); ++m) {
+                            temp.emplace_back(g_users[j].available[useful_idx[m]]);
+                        }
+                        continue;
+                    }
+
+                    // 如果都满足比例分配则跳出循环
+                    if (unsatisfied_idx.empty()) {
+                        int num_available = ratio.size();
+                        // 按比例分
+                        for (int k = 0; k < num_available; ++k) {
+                            g_nodes[satisfied_idx[k]].now_used = ratio[k];
+                            g_nodes[satisfied_idx[k]].remain -= ratio[k];
+
+                            a_little_left -= ratio[k];
+                            used_nodes.emplace_back(g_nodes[satisfied_idx[k]]);
+                        }
+                        // 分剩余
+                        for (int l = 0; l < used_nodes.size(); ++l) {
+                            if (used_nodes[l].remain >= a_little_left) {
+                                g_nodes[used_nodes[l].index].remain -= a_little_left;
+                                used_nodes[l].now_used += a_little_left;
+                                break;
+                            } else {
+                                used_nodes[l].now_used += g_nodes[used_nodes[l].index].remain;
+                                g_nodes[used_nodes[l].index].remain = 0;
+                            }
+                        }
+                        break;
+                    }
+                    temp = satisfied_idx;
+                }
+                for (int n = 0; n < used_nodes.size(); ++n) {
+                    g_nodes[used_nodes[n].index].history[i]+=used_nodes[n].now_used;
+                }
+                // 输出
+                if (i == 0 && j == 0) {
+                    logger_line1(g_users[j], used_nodes);
+                } else {
+                    logger_line(g_users[j], used_nodes);
+                }
+            }
+        }
+        // 重置每个服务器的带宽
+        reset_bandwidth();
+    }
+    //时间
+    for (int i = 1; i < g_demand.size(); ++i) {
+        //边缘节点
+        for(int j=0;j<g_nodes.size();j++){
+            Node& now_node = g_nodes[j];
+            int now_95=now_node.get_95();
+            now_node.history.emplace_back(0);
+            //客户
+            for (int k = 0; k < now_node.available.size(); ++k) {
+                if(now_95>0) {
+                    int now_demand = g_demand[i][now_node.available[k]];
+                    if (now_demand <= now_95) {
+                        now_node.remain -= now_demand;
+                        now_95 -= now_demand;
+                        now_node.history[i]+=now_demand;
+                        g_demand[i][now_node.available[k]]=0;
+                        output[i][now_node.available[k]][j]+=now_demand;
+                    } else {
+                        g_demand[i][now_node.available[k]] -= now_95;
+                        now_node.remain -= now_95;
+                        now_node.history[i]+=now_95;
+                        output[i][now_node.available[k]][j]+=now_95;
+                        now_95=0;
+                    }
+                }
+                else{
+                    break;
+                }
+            }
+        }
+        int all_demand=0;
+        for (int l = 0; l < g_demand[i].size(); ++l) {
+            all_demand+=g_demand[i][l];
+        }
+        if(all_demand==0){
+            continue;
+        }
+        else {
+            for (int l = 0; l < g_demand[i].size(); ++l) {
+                if(g_demand[i][l]>0){
+                    for (int j = 0; j <g_users[l].available.size() ; ++j) {
+                        int now_remain=g_nodes[g_users[l].available[j]].remain;
+                        if(now_remain>0){
+                            if(g_demand[i][l]>now_remain) {
+                                g_demand[i][l] -= now_remain;
+                                g_nodes[g_users[l].available[j]].remain=0;
+                                g_nodes[g_users[l].available[j]].history[i]+=now_remain;
+                                output[i][l][g_users[l].available[j]]+=now_remain;
+                            }
+                            else{
+                                g_nodes[g_users[l].available[j]].remain-=g_demand[i][l];
+                                g_nodes[g_users[l].available[j]].history[i]+=g_demand[i][l];
+                                output[i][l][g_users[l].available[j]]+=g_demand[i][l];
+                                g_demand[i][l] = 0;
+                            }
+                        }
+                    }
+                }
+                else{
+                    continue;
+                }
+            }
+        }
+        // 重置每个服务器的带宽
+        reset_bandwidth();
+    }
+
+
+    for (int i1 = 1; i1 < output.size(); ++i1) {
+        for (int i = 0; i < output[i1].size(); ++i) {
+            vector<Node> v;
+            for (int j = 0; j < output[i1][i].size(); ++j) {
+                if (g_qos[j][i] < QOS_MAX && output[i1][i][j] > 0) {
+                    Node n = Node(g_nodes[j].name, j);
+                    n.now_used = output[i1][i][j];
+                    v.emplace_back(n);
+                }
+            }
+            logger_line(User(g_users[i].name, i), v);
+        }
+    }
+
+
+}
+
 // baseline
 void baseline() {
     srand((int)time(0));
@@ -282,10 +475,6 @@ void baseline() {
 }
 
 
-
-
-
-
 int main() {
 
     freopen(SOLUTION_PATH.c_str(), "w", stdout);
@@ -318,7 +507,7 @@ int main() {
 //        cout << g_times[i].name << " " << g_times[i].index << endl;
 //    }
 //
-    baseline();
+    baseline_1();
     fclose(stdout);
     return 0;
 }
