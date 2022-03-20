@@ -678,7 +678,6 @@ vector<vector<vector<int> > > baseline_2() {
 
         }
     }
-    g_output = output;
     return output;
 }
 
@@ -687,7 +686,9 @@ const float G_SUB_RATIO_LEFT = 0.01;
 const float G_SUB_RATIO_RIGHT = 0.1;
 const float MAX_OPTIMIZE_LOOP = 25;
 
-void optimize_thread(int i) {
+void optimize_thread(int be, int en) {
+
+    for (int i = be; i < en; ++i) {
         // 节点 1
         Node& now_node1 = g_nodes[i];
         int now_node1_idx = i;
@@ -761,7 +762,7 @@ void optimize_thread(int i) {
 
 
         }
-
+    }
 }
 
 vector<vector<Common> > get_common_users_mat() {
@@ -784,6 +785,7 @@ vector<vector<Common> > get_common_users_mat() {
     g_common_users_mat = common_users_mat;
     return common_users_mat;
 }
+
 void optimize(vector<vector<vector<int> > >& output) {
 
     srand((int) time(0));
@@ -806,100 +808,17 @@ void optimize(vector<vector<vector<int> > >& output) {
         g_nodes[i].get_95_pair();
     }
     // 客户交集矩阵
-    vector<vector<Common> > common_users_mat(g_nodes.size(), vector<Common>(g_nodes.size(), Common()));
-    for (int m = 0; m < g_nodes.size(); ++m) {
-        for (int i = 0; i < g_nodes.size(); ++i) {
-            if (m >= i) {
-                vector<int> common_users;
-                set_intersection(g_nodes[m].available.begin(), g_nodes[m].available.end(),
-                                 g_nodes[i].available.begin(), g_nodes[i].available.end(),
-                                 back_inserter(common_users));
-                common_users_mat[m][i] = Common(common_users);
-            }
-            else {
-                common_users_mat[m][i] = common_users_mat[i][m];
-            }
-        }
-    }
+    get_common_users_mat();
+
 
 
     for (int lp = 0; lp < MAX_OPTIMIZE_LOOP; ++lp) {
         // 优化开始
-        for (int i = 0; i < g_nodes.size(); ++i) {
-            // 节点 1
-            Node& now_node1 = g_nodes[i];
-            int now_node1_idx = i;
-            // 拿到 now_node 的 95 分位时间点，未排序的
-            int now_node1_95_idx = now_node1.pair_percent_95.first;
-
-            int now_node2_idx = 0;
-            // solution1: 找到在该时间点上最远离 95 分位的服务器
-//        int dis = -1;
-//        for (int j = 0; j < g_nodes.size(); ++j) {
-//            int num_95th = g_nodes[j].history[g_nodes[j].idx_95];
-//            if (j != now_node1_idx) {
-//                int num_min = g_nodes[j].history_unsorted[now_node1_95_idx];
-//                if (dis < (num_95th - num_min) && (num_95th - num_min) > 0) {
-//                    now_node2_idx = j;
-//                    dis = num_95th - num_min;
-//                }
-//            }
-//        }
-            // solution2: 找到和 node1 共同用户最多的服务器
-            now_node2_idx = 0;
-            int num_common_user = 0;
-            for (int j = 0; j < g_nodes.size(); ++j) {
-                if (j != now_node1_idx) {
-                    // 取两服务器的客户交集
-                    if (num_common_user < common_users_mat[now_node1_idx][j].common_users.size()) {
-                        now_node2_idx = j;
-                        num_common_user = common_users_mat[now_node1_idx][j].common_users.size();
-                    }
-                }
-            }
-            if (now_node2_idx == now_node1_idx) continue;
-            Node& now_node2 = g_nodes[now_node2_idx];
-
-            // 拿到二维表 [ n_客户, n_服务器 ]
-            vector<vector<int> >& now_time = output[now_node1_95_idx];
-
-            // 取两服务器的客户交集
-            vector<int> common_users = common_users_mat[now_node1_idx][now_node2_idx].common_users;
-
-            // 减小 now_node1 的 95 分位成本
-            for (int k = 0; k < common_users.size(); ++k) {
-
-                int now_user_idx = common_users[k];
-                int now_user_node1 = now_time[now_user_idx][now_node1_idx];
-
-                int least = G_SUB_RATIO_LEFT * now_user_node1;
-                int most = G_SUB_RATIO_RIGHT * now_user_node1;
-
-                int delta = random(least, most);
-
-                // delta 需要小于 node2 在当前时间节点下的剩余量
-                int sum = now_node2.pair_history_unsorted[now_node1_95_idx].second;
-                int left_node2 = now_node2.bandwidth - sum;
-
-                if (delta > left_node2) {
-                    continue;
-                }
-
-                // 交换 delta
-                now_time[now_user_idx][now_node2_idx] += delta;
-                now_time[now_user_idx][now_node1_idx] -= delta;
-                now_node1.pair_history_unsorted[now_node1_95_idx].second -= delta;
-                now_node2.pair_history_unsorted[now_node1_95_idx].second += delta;
-
-                // 更新这两个服务器的 95 分位
-                now_node1.pair_history = now_node1.pair_history_unsorted;
-                now_node2.pair_history = now_node2.pair_history_unsorted;
-                now_node1.get_95_pair();
-                now_node2.get_95_pair();
-
-
-            }
-
+        int n = 4;
+        int interval = g_nodes.size() / 4;
+        for (int i = 0; i < n; i++) {
+            thread t(optimize_thread, (i + 1) * 2, (i + 1) * 3);
+            t.detach();
         }
     }
     
@@ -934,10 +853,10 @@ int main() {
     read_demand();
     read_bandwidth();
 
-    vector<vector<vector<int> > > output = baseline_2();
-//    vector<vector<vector<int> > > output = baseline();
-    optimize(output);
-    prt(output);
+    g_output = baseline_2();
+//    g_output = baseline();
+    optimize(g_output);
+    prt(g_output);
 
     fclose(stdout);
     return 0;
