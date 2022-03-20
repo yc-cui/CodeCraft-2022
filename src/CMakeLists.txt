@@ -25,4 +25,4 @@ aux_source_directory(. DIR_SRCS)
 # 指定生成目标
 add_executable(CodeCraft-2022 ${DIR_SRCS})
 
-#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Debug)
