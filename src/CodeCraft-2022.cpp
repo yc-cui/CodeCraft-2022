@@ -799,20 +799,22 @@ void optimize(vector<vector<vector<int> > > &output) {
                 now_node2.pair_history_unsorted[now_node1_95_idx].second += delta;
 
                 // 更新这两个服务器的 95 分位
-                now_node1.pair_history = now_node1.pair_history_unsorted;
                 // node1 的 95 分位会减小
-                int now95 = now_node1.idx_95;
-                for (int j = now95 - 1; j > 0; j--) {
-                    if (now_node1.pair_history[now95] < now_node1.pair_history[j]) {
-                        swap(now_node1.pair_history[now95], now_node1.pair_history[j]);
-                        now95--;
-                    }
-                }
+//                int now95 = now_node1.idx_95;
+//                for (int j = now95 - 1; j > 0; j--) {
+//                    if (now_node1.pair_history[now95] < now_node1.pair_history[j]) {
+//                        swap(now_node1.pair_history[now95], now_node1.pair_history[j]);
+//                        now95--;
+//                    }
+//                }
+//                now_node1.pair_percent_95 = now_node1.pair_history[now_node1.idx_95];
+
 
                 // node2 的95 分位会增加
                 now_node2.pair_history = now_node2.pair_history_unsorted;
                 now_node2.get_95_pair();
-
+                now_node1.pair_history = now_node1.pair_history_unsorted;
+                now_node1.get_95_pair();
 
             }
 
@@ -849,7 +851,11 @@ vector<vector<vector<int> > > maximize_95plus() {
     // 每个边缘节点 计算每个时刻 所有用户的总需求流量 [nodes size, timeline size] pair: time_index, asked
     vector<vector<pair<int, int>>> node_time_asked(g_nodes.size(),
                                                    vector<pair<int, int>>(g_demand.size(), make_pair(0, 0)));
+    // 节点选取顺序
+    vector<pair<int, int> > nodes_series_1(g_nodes.size(), make_pair(0, 0));
+    vector<pair<int, int> > nodes_series_2(g_nodes.size(), make_pair(0, 0));
     for (int i = 0; i < g_nodes.size(); ++i) {
+        int sum_all_time = 0;
         for (int j = 0; j < g_demand.size(); ++j) {
             int now_time_idx = j;
             int sum = 0;
@@ -857,9 +863,26 @@ vector<vector<vector<int> > > maximize_95plus() {
                 int now_user_idx = g_nodes[i].available[k];
                 sum += g_demand[now_time_idx][now_user_idx];
             }
+            sum_all_time += sum;
             node_time_asked[i][now_time_idx] = make_pair(now_time_idx, sum);
         }
+        nodes_series_1[i].first = i;
+        nodes_series_1[i].second = sum_all_time;
     }
+    // 节点序列选取 step 1 所有时间点的流量和 由大到小
+    InsertionSort_form_big_to_small(nodes_series_1, nodes_series_1.size());
+    // 节点序列选取 step 2 每个节点的 available 由小到大排序
+    for (int i = 0; i < g_nodes.size(); ++i) {
+        nodes_series_2[i].first = nodes_series_1[i].first;
+//        cout << nodes_series_1[i].first << " " << nodes_series_1[i].second << " " << g_nodes[nodes_series_1[i].first].available.size() << endl;
+        nodes_series_2[i].second = g_nodes[nodes_series_1[i].first].available.size();
+    }
+    InsertionSort(nodes_series_2, nodes_series_2.size());
+//    for (int i = 0; i < g_nodes.size(); ++i) {
+//        cout << nodes_series_2[i].first << " " << nodes_series_2[i].second << endl;
+//    }
+
+
 
     // 每个边缘节点 每个时刻最大安排流量 [nodes size, timeline size]
     vector<vector<int> > node_time_remain(g_nodes.size(), vector<int>(g_demand.size(), 0));
@@ -877,12 +900,13 @@ vector<vector<vector<int> > > maximize_95plus() {
 
         // 对于每个边缘节点 前5%（取下整），对应时刻
         for (int i = 0; i < g_nodes.size(); ++i) {
+            int now_node_idx = nodes_series_2[i].first;
+//            int now_node_idx = i;
             // 每个节点的总需求按时间线从大到小排序
             vector<vector<pair<int, int> > > sorted_node_time_asked = node_time_asked;
-//            sort(sorted_node_time_asked[i].begin(), sorted_node_time_asked[i].end(), Great);
-            InsertionSort_form_big_to_small(sorted_node_time_asked[i], sorted_node_time_asked[i].size());
+            InsertionSort_form_big_to_small(sorted_node_time_asked[now_node_idx], sorted_node_time_asked[now_node_idx].size());
             // 当前边缘节点
-            Node &now_node = g_nodes[i];
+            Node &now_node = g_nodes[now_node_idx];
             // 取到当前节点 前 5% 的所有时间点
             vector<pair<int, int> > now_time_line_sorted(sorted_node_time_asked[now_node.index].begin(),
                                                          sorted_node_time_asked[now_node.index].begin() + num_95plus);
@@ -1028,9 +1052,9 @@ vector<vector<vector<int> > > maximize_95plus() {
 
 int main() {
 
-    clock_t t1 = clock();
+//    clock_t t1 = clock();
 
-//    freopen(SOLUTION_PATH.c_str(), "w", stdout);
+    freopen(SOLUTION_PATH.c_str(), "w", stdout);
 
     read_conf();
 
@@ -1045,14 +1069,16 @@ int main() {
 //    double totaltime = (t3 - t1)*1.0 / CLOCKS_PER_SEC;
 //    cout <<"执行时间:" <<totaltime<<"秒" << endl;
     // baseline(g_output);
-    optimize(g_output);
-//    prt(g_output);
+//    optimize(g_output);
+    prt(g_output);
 //
-//    fclose(stdout);
+    fclose(stdout);
 
-    clock_t t2 = clock();
-    double totaltime1 = (t2 - t1) * 1.0 / CLOCKS_PER_SEC;
-    cout << "执行时间:" << totaltime1 << "秒" << endl;
+//    clock_t t2 = clock();
+//    double totaltime1 = (t2 - t1) * 1.0 / CLOCKS_PER_SEC;
+//    cout << "执行时间:" << totaltime1 << "秒" << endl;
+
+
 
 
     return 0;
