@@ -32,6 +32,18 @@ void InsertionSort(vector<int> &a, int len) {
         a[i + 1] = key;
     }
 }
+
+void InsertionSort_form_big_to_small(vector<int> &a, int len) {
+    for (int j = 1; j < len; j++) {
+        int key = a[j];
+        int i = j - 1;
+        while (i >= 0 && a[i] < key) {
+            a[i + 1] = a[i];
+            i--;
+        }
+        a[i + 1] = key;
+    }
+}
 // index, value
 void InsertionSort(vector<pair<int, int> > &a, int len) {
     for (int j = 1; j < len; j++) {
@@ -45,8 +57,25 @@ void InsertionSort(vector<pair<int, int> > &a, int len) {
     }
 }
 
+// index, value
+void InsertionSort_form_big_to_small(vector<pair<int, int> > &a, int len) {
+    for (int j = 1; j < len; j++) {
+        auto key = a[j];
+        int i = j - 1;
+        while (i >= 0 && a[i].second < key.second) {
+            a[i + 1] = a[i];
+            i--;
+        }
+        a[i + 1] = key;
+    }
+}
+// 从小到大
 bool Less(const pair<int, int>& s1, const pair<int, int>& s2) {
     return s1.second < s2.second;
+}
+// 从大到小
+bool Great(const pair<int, int>& s1, const pair<int, int>& s2) {
+    return s1.second > s2.second;
 }
 
 class Node {
@@ -63,6 +92,7 @@ public:
     int total_used = 0;
     vector<int> available;
     vector<int> history;
+    vector<int> all_remain;
     vector<pair<int, int> > pair_history;
     vector<pair<int, int> > pair_history_unsorted;
 
@@ -92,6 +122,7 @@ public:
         this->history = node.history;
         this->total_used = node.total_used;
         this->pair_history_unsorted = node.pair_history_unsorted;
+        this->all_remain = node.all_remain;
         this->pair_history = node.pair_history;
         this->pair_percent_95 = node.pair_percent_95;
     }
@@ -111,6 +142,7 @@ public:
         this->pair_history_unsorted = node.pair_history_unsorted;
         this->pair_history = node.pair_history;
         this->pair_percent_95 = node.pair_percent_95;
+        this->all_remain = node.all_remain;
 
     }
 
@@ -128,6 +160,10 @@ public:
         pair_percent_95 = pair_history[idx_95];
         return pair_percent_95;
     }
+
+};
+class Who {
+public:
 
 };
 
@@ -214,6 +250,7 @@ void logger_line1(User user, vector<Node> nodes) {
 void logger_standard(User user, vector<Node> nodes) {
     cout << user.name << ":";
     if (nodes.size() == 0) {
+        cout << endl;
         return;
     }
     int n = nodes.size();

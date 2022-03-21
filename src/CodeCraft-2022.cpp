@@ -7,7 +7,7 @@
 #include "utils.h"
 #include <cmath>
 #include <map>
-#include <thread>
+//#include <thread>
 // [a,b]的随机整数
 #define random(a, b) (rand() % ( b - a + 1) + a)
 
@@ -15,8 +15,11 @@ using namespace std;
 
 
 class Node;
+
 class User;
+
 class Common;
+
 class Time;
 
 string CONFIG_PATH = "/data/config.ini";
@@ -32,6 +35,7 @@ vector<vector<int>> g_qos;
 vector<vector<int>> g_demand;
 vector<vector<vector<int> > > g_output;
 vector<vector<Common> > g_common_users_mat;
+
 // 初始化 g_qos g_users g_nodes
 void read_qos() {
     std::ifstream data;
@@ -125,6 +129,7 @@ void read_bandwidth() {
                 int idx = cnt++;
                 g_nodes[idx].bandwidth = atoi(str.c_str());
                 g_nodes[idx].remain = g_nodes[idx].bandwidth;
+                g_nodes[idx].all_remain = vector<int> (g_demand.size(), g_nodes[idx].bandwidth);
             }
         }
     }
@@ -191,9 +196,7 @@ map<int, int> ratio_nodes(map<int, Node> all, int demand) {
 }
 
 // szz's baseline
-void baseline_1() {
-    vector<vector<vector<int> > > output(g_demand.size(),
-                                         vector<vector<int> >(g_users.size(), vector<int>(g_nodes.size(), 0)));
+void baseline_1(vector<vector<vector<int> > >& output) {
     srand((int) time(0));
     // 对于每个时间点
     for (int i = 0; i < 1; ++i) {
@@ -336,9 +339,9 @@ void baseline_1() {
             continue;
         } else {
             for (int l = 0; l < g_demand[i].size(); ++l) {
-                if(all_demand==0)break;
+                if (all_demand == 0)break;
                 if (g_demand[i][l] > 0) {
-                    int single=g_demand[i][l]/g_users[l].available.size();
+                    int single = g_demand[i][l] / g_users[l].available.size();
                     for (int j = 0; j < g_users[l].available.size(); ++j) {
                         int now_remain = g_nodes[g_users[l].available[j]].remain;
                         if (now_remain > 0) {
@@ -350,8 +353,8 @@ void baseline_1() {
                             } else {
                                 g_nodes[g_users[l].available[j]].remain -= single;
                                 g_nodes[g_users[l].available[j]].history[i] += single;
-                                output[i][l][g_users[l].available[j]] +=single;
-                                all_demand-=single;
+                                output[i][l][g_users[l].available[j]] += single;
+                                all_demand -= single;
                                 g_demand[i][l] -= single;
                             }
                         }
@@ -359,17 +362,17 @@ void baseline_1() {
                     for (int j = 0; j < g_users[l].available.size(); ++j) {
                         int now_remain = g_nodes[g_users[l].available[j]].remain;
                         if (now_remain > 0) {
-                            if (g_demand[i][l]  > now_remain) {
+                            if (g_demand[i][l] > now_remain) {
                                 g_demand[i][l] -= now_remain;
                                 g_nodes[g_users[l].available[j]].remain = 0;
                                 g_nodes[g_users[l].available[j]].history[i] += now_remain;
                                 output[i][l][g_users[l].available[j]] += now_remain;
                             } else {
-                                g_nodes[g_users[l].available[j]].remain -= g_demand[i][l] ;
-                                g_nodes[g_users[l].available[j]].history[i] += g_demand[i][l] ;
-                                output[i][l][g_users[l].available[j]] +=g_demand[i][l] ;
-                                all_demand-=g_demand[i][l] ;
-                                g_demand[i][l] -= g_demand[i][l] ;
+                                g_nodes[g_users[l].available[j]].remain -= g_demand[i][l];
+                                g_nodes[g_users[l].available[j]].history[i] += g_demand[i][l];
+                                output[i][l][g_users[l].available[j]] += g_demand[i][l];
+                                all_demand -= g_demand[i][l];
+                                g_demand[i][l] -= g_demand[i][l];
                                 break;
                             }
                         }
@@ -484,9 +487,7 @@ const int G_PART = 1000;
 const int G_MAX_LOOP = 10;
 
 // cxy's baseline
-vector<vector<vector<int> > > baseline_2() {
-    vector<vector<vector<int> > > output(g_demand.size(),
-                                         vector<vector<int> >(g_users.size(), vector<int>(g_nodes.size(), 0)));
+void baseline_2(vector<vector<vector<int> > >& output) {
     // 每个时间节点
     for (int i = 0; i < g_demand.size(); ++i) {
         // 已分配节点列表
@@ -537,7 +538,9 @@ vector<vector<vector<int> > > baseline_2() {
                 // 如果每台节点都放得下 avg，则分配完毕，break
                 bool can_put = true;
                 for (auto &kv: temp_nodes) {
-                    if ((kv.second.bandwidth < avg) || (avg < kv.second.total_used)) {
+                    int now_node_idx = kv.first;
+                    int now_bandwidth = g_nodes[now_node_idx].all_remain[i];
+                    if ((now_bandwidth < avg) || (avg < kv.second.total_used)) {
                         can_put = false;
                         cannot_put.emplace_back(kv.first);
                     }
@@ -552,7 +555,9 @@ vector<vector<vector<int> > > baseline_2() {
 
                     while (a_little_left > 0) {
                         for (auto &kv: temp_nodes) {
-                            if (kv.second.bandwidth - kv.second.total_used >= a_little_left) {
+                            int now_node_idx = kv.first;
+                            int now_bandwidth = g_nodes[now_node_idx].all_remain[i];
+                            if (now_bandwidth - kv.second.total_used >= a_little_left) {
                                 kv.second.total_used += a_little_left;
                                 kv.second.now_used += a_little_left;
                                 a_little_left = 0;
@@ -614,7 +619,7 @@ vector<vector<vector<int> > > baseline_2() {
                     for (auto &kv: ratio) {
                         int idx = kv.first;
                         // 满足
-                        if (temp_nodes_copy[idx].bandwidth - temp_nodes_copy[idx].total_used >= ratio[idx]) {
+                        if (temp_nodes_copy[idx].all_remain[i] - temp_nodes_copy[idx].total_used >= ratio[idx]) {
                             satisfied_idx[idx] = temp_nodes_copy[idx];
                         }
                             // 不满足
@@ -635,15 +640,14 @@ vector<vector<vector<int> > > baseline_2() {
                         // 分剩余
                         for (auto &kv: temp_nodes_copy) {
                             int idx = kv.first;
-                            int remain = temp_nodes[idx].bandwidth - temp_nodes[idx].total_used;
+                            int remain = temp_nodes[idx].all_remain[i] - temp_nodes[idx].total_used;
                             if (remain >= a_little_left) {
                                 temp_nodes[idx].now_used += a_little_left;
                                 temp_nodes[idx].total_used += a_little_left;
                                 break;
-                            }
-                            else {
+                            } else {
                                 temp_nodes[idx].now_used += remain;
-                                temp_nodes[idx].total_used = temp_nodes[idx].bandwidth;
+                                temp_nodes[idx].total_used = temp_nodes[idx].all_remain[i];
                             }
                         }
                         break;
@@ -678,92 +682,12 @@ vector<vector<vector<int> > > baseline_2() {
 
         }
     }
-    return output;
 }
 
 // 替换比例
 const float G_SUB_RATIO_LEFT = 0.01;
 const float G_SUB_RATIO_RIGHT = 0.1;
 const float MAX_OPTIMIZE_LOOP = 25;
-
-void optimize_thread(int be, int en) {
-
-    for (int i = be; i < en; ++i) {
-        // 节点 1
-        Node& now_node1 = g_nodes[i];
-        int now_node1_idx = i;
-        // 拿到 now_node 的 95 分位时间点，未排序的
-        int now_node1_95_idx = now_node1.pair_percent_95.first;
-
-        int now_node2_idx = 0;
-        // solution1: 找到在该时间点上最远离 95 分位的服务器
-//        int dis = -1;
-//        for (int j = 0; j < g_nodes.size(); ++j) {
-//            int num_95th = g_nodes[j].history[g_nodes[j].idx_95];
-//            if (j != now_node1_idx) {
-//                int num_min = g_nodes[j].history_unsorted[now_node1_95_idx];
-//                if (dis < (num_95th - num_min) && (num_95th - num_min) > 0) {
-//                    now_node2_idx = j;
-//                    dis = num_95th - num_min;
-//                }
-//            }
-//        }
-        // solution2: 找到和 node1 共同用户最多的服务器
-        now_node2_idx = 0;
-        int num_common_user = 0;
-        for (int j = 0; j < g_nodes.size(); ++j) {
-            if (j != now_node1_idx) {
-                // 取两服务器的客户交集
-                if (num_common_user < g_common_users_mat[now_node1_idx][j].common_users.size()) {
-                    now_node2_idx = j;
-                    num_common_user = g_common_users_mat[now_node1_idx][j].common_users.size();
-                }
-            }
-        }
-        if (now_node2_idx == now_node1_idx) return;
-        Node& now_node2 = g_nodes[now_node2_idx];
-
-        // 拿到二维表 [ n_客户, n_服务器 ]
-        vector<vector<int> >& now_time = g_output[now_node1_95_idx];
-
-        // 取两服务器的客户交集
-        vector<int> common_users = g_common_users_mat[now_node1_idx][now_node2_idx].common_users;
-
-        // 减小 now_node1 的 95 分位成本
-        for (int k = 0; k < common_users.size(); ++k) {
-
-            int now_user_idx = common_users[k];
-            int now_user_node1 = now_time[now_user_idx][now_node1_idx];
-
-            int least = G_SUB_RATIO_LEFT * now_user_node1;
-            int most = G_SUB_RATIO_RIGHT * now_user_node1;
-
-            int delta = random(least, most);
-
-            // delta 需要小于 node2 在当前时间节点下的剩余量
-            int sum = now_node2.pair_history_unsorted[now_node1_95_idx].second;
-            int left_node2 = now_node2.bandwidth - sum;
-
-            if (delta > left_node2) {
-                continue;
-            }
-
-            // 交换 delta
-            now_time[now_user_idx][now_node2_idx] += delta;
-            now_time[now_user_idx][now_node1_idx] -= delta;
-            now_node1.pair_history_unsorted[now_node1_95_idx].second -= delta;
-            now_node2.pair_history_unsorted[now_node1_95_idx].second += delta;
-
-            // 更新这两个服务器的 95 分位
-            now_node1.pair_history = now_node1.pair_history_unsorted;
-            now_node2.pair_history = now_node2.pair_history_unsorted;
-            now_node1.get_95_pair();
-            now_node2.get_95_pair();
-
-
-        }
-    }
-}
 
 vector<vector<Common> > get_common_users_mat() {
     // 客户交集矩阵
@@ -776,8 +700,7 @@ vector<vector<Common> > get_common_users_mat() {
                                  g_nodes[i].available.begin(), g_nodes[i].available.end(),
                                  back_inserter(common_users));
                 common_users_mat[m][i] = Common(common_users);
-            }
-            else {
+            } else {
                 common_users_mat[m][i] = common_users_mat[i][m];
             }
         }
@@ -808,26 +731,109 @@ void optimize(vector<vector<vector<int> > >& output) {
         g_nodes[i].get_95_pair();
     }
     // 客户交集矩阵
-    get_common_users_mat();
-
+    vector<vector<Common> > common_users_mat(g_nodes.size(), vector<Common>(g_nodes.size(), Common()));
+    for (int m = 0; m < g_nodes.size(); ++m) {
+        for (int i = 0; i < g_nodes.size(); ++i) {
+            if (m >= i) {
+                vector<int> common_users;
+                set_intersection(g_nodes[m].available.begin(), g_nodes[m].available.end(),
+                                 g_nodes[i].available.begin(), g_nodes[i].available.end(),
+                                 back_inserter(common_users));
+                common_users_mat[m][i] = Common(common_users);
+            }
+            else {
+                common_users_mat[m][i] = common_users_mat[i][m];
+            }
+        }
+    }
 
 
     for (int lp = 0; lp < MAX_OPTIMIZE_LOOP; ++lp) {
         // 优化开始
-        int n = 4;
-        int interval = g_nodes.size() / 4;
-        for (int i = 0; i < n; i++) {
-            thread t(optimize_thread, (i + 1) * 2, (i + 1) * 3);
-            t.detach();
+        for (int i = 0; i < g_nodes.size(); ++i) {
+            // 节点 1
+            Node& now_node1 = g_nodes[i];
+            int now_node1_idx = i;
+            // 拿到 now_node 的 95 分位时间点，未排序的
+            int now_node1_95_idx = now_node1.pair_percent_95.first;
+
+            int now_node2_idx = 0;
+            // solution1: 找到在该时间点上最远离 95 分位的服务器
+//        int dis = -1;
+//        for (int j = 0; j < g_nodes.size(); ++j) {
+//            int num_95th = g_nodes[j].history[g_nodes[j].idx_95];
+//            if (j != now_node1_idx) {
+//                int num_min = g_nodes[j].history_unsorted[now_node1_95_idx];
+//                if (dis < (num_95th - num_min) && (num_95th - num_min) > 0) {
+//                    now_node2_idx = j;
+//                    dis = num_95th - num_min;
+//                }
+//            }
+//        }
+            // solution2: 找到和 node1 共同用户最多的服务器
+            now_node2_idx = 0;
+            int num_common_user = 0;
+            for (int j = 0; j < g_nodes.size(); ++j) {
+                if (j != now_node1_idx) {
+                    // 取两服务器的客户交集
+                    if (num_common_user < common_users_mat[now_node1_idx][j].common_users.size()) {
+                        now_node2_idx = j;
+                        num_common_user = common_users_mat[now_node1_idx][j].common_users.size();
+                    }
+                }
+            }
+            if (now_node2_idx == now_node1_idx) continue;
+            Node& now_node2 = g_nodes[now_node2_idx];
+
+            // 拿到二维表 [ n_客户, n_服务器 ]
+            vector<vector<int> >& now_time = output[now_node1_95_idx];
+
+            // 取两服务器的客户交集
+            vector<int> common_users = common_users_mat[now_node1_idx][now_node2_idx].common_users;
+
+            // 减小 now_node1 的 95 分位成本
+            for (int k = 0; k < common_users.size(); ++k) {
+
+                int now_user_idx = common_users[k];
+                int now_user_node1 = now_time[now_user_idx][now_node1_idx];
+
+                int least = G_SUB_RATIO_LEFT * now_user_node1;
+                int most = G_SUB_RATIO_RIGHT * now_user_node1;
+
+                int delta = random(least, most);
+
+                // delta 需要小于 node2 在当前时间节点下的剩余量
+                int sum = now_node2.pair_history_unsorted[now_node1_95_idx].second;
+                int left_node2 = now_node2.bandwidth - sum;
+
+                if (delta > left_node2) {
+                    continue;
+                }
+
+                // 交换 delta
+                now_time[now_user_idx][now_node2_idx] += delta;
+                now_time[now_user_idx][now_node1_idx] -= delta;
+                now_node1.pair_history_unsorted[now_node1_95_idx].second -= delta;
+                now_node2.pair_history_unsorted[now_node1_95_idx].second += delta;
+
+                // 更新这两个服务器的 95 分位
+                now_node1.pair_history = now_node1.pair_history_unsorted;
+                now_node2.pair_history = now_node2.pair_history_unsorted;
+                now_node1.get_95_pair();
+                now_node2.get_95_pair();
+
+
+            }
+
         }
     }
-    
+
 
 }
 
 
 
-void prt(const vector<vector<vector<int> > >& output) {
+void prt(const vector<vector<vector<int> > > &output) {
     for (int i1 = 0; i1 < output.size(); ++i1) {
         for (int i = 0; i < output[i1].size(); ++i) {
             vector<Node> v;
@@ -843,6 +849,139 @@ void prt(const vector<vector<vector<int> > >& output) {
     }
 }
 
+vector<vector<vector<int> > > maximize_95plus() {
+    // 输出
+    vector<vector<vector<int> > > output(g_demand.size(), vector<vector<int> >(g_users.size(),
+                                                                               vector<int>(g_nodes.size(), 0)));
+    // 前 5% 的时间节点个数
+    int num_95plus = g_demand.size() - g_demand.size() * 0.95;
+
+    // 每个边缘节点 计算每个时刻 所有用户的总需求流量 [nodes size, timeline size] pair: time_index, asked
+    vector<vector<pair<int, int>>> node_time_asked(g_nodes.size(),
+                                                   vector<pair<int, int>>(g_demand.size(), make_pair(0, 0)));
+    for (int i = 0; i < g_nodes.size(); ++i) {
+        for (int j = 0; j < g_demand.size(); ++j) {
+            int now_time_idx = j;
+            int sum = 0;
+            for (int k = 0; k < g_nodes[i].available.size(); ++k) {
+                int now_user_idx = g_nodes[i].available[k];
+                sum += g_demand[now_time_idx][now_user_idx];
+            }
+            node_time_asked[i][now_time_idx] = make_pair(now_time_idx, sum);
+        }
+    }
+
+    // 每个边缘节点 每个时刻最大安排流量 [nodes size, timeline size]
+    vector<vector<int> > node_time_remain(g_nodes.size(), vector<int>(g_demand.size(), 0));
+    for (int i = 0; i < g_nodes.size(); ++i) {
+        for (int j = 0; j < g_demand.size(); ++j) {
+            node_time_remain[i][j] = g_nodes[i].bandwidth;
+        }
+    }
+
+    // 循环直到需求不能再被分配
+    while (true) {
+
+        // 是否跳出循环
+        bool can_break = true;
+
+        // 对于每个边缘节点 前5%（取下整），对应时刻
+        for (int i = 0; i < g_nodes.size(); ++i) {
+            // 每个节点的总需求按时间线从大到小排序
+            vector<vector<pair<int, int> > > sorted_node_time_asked = node_time_asked;
+//            sort(sorted_node_time_asked[i].begin(), sorted_node_time_asked[i].end(), Great);
+//            InsertionSort_form_big_to_small(sorted_node_time_asked[i], sorted_node_time_asked[i].size());
+            // 当前边缘节点
+            Node &now_node = g_nodes[i];
+            // 取到当前节点 前 5% 的所有时间点
+            vector<pair<int, int> > now_time_line_sorted(sorted_node_time_asked[now_node.index].begin(),
+                                                         sorted_node_time_asked[now_node.index].begin() + num_95plus);
+            // 对于这些时间点 如果总需求流量 ≤ 当前时刻最大安排流量，直接进行安排；
+            for (int j = 0; j < now_time_line_sorted.size(); ++j) {
+                // 当前时间线的下标
+                int real_time_idx = now_time_line_sorted[j].first;
+                // 当前时间线该服务器的可供应量
+                int can_supply = node_time_remain[now_node.index][real_time_idx];
+                // 当前时间线的总需求量
+                int now_demand = now_time_line_sorted[j].second;
+                if (now_demand == 0) {
+                    break;
+                }
+                // 总需求 <= 可供应：直接放置
+                if (can_supply >= now_demand) {
+                    // 该服务器在该时间点的可供应量减少
+                    node_time_remain[now_node.index][real_time_idx] -= now_demand;
+                    now_node.all_remain[real_time_idx] -= now_demand;
+                    // 需求量减少
+                    node_time_asked[now_node.index][real_time_idx].second = 0;
+                    sorted_node_time_asked[now_node.index][j].second = 0;
+                    // 已分配，更新输出和剩余需求
+                    for (int k = 0; k < now_node.available.size(); ++k) {
+                        int now_usr_idx = now_node.available[k];
+                        // 更新输出
+                        output[real_time_idx][now_usr_idx][now_node.index] += g_demand[real_time_idx][now_usr_idx];
+                        // 更新 demand
+                        g_demand[real_time_idx][now_usr_idx] = 0;
+                    }
+                    can_break = false;
+                }
+                    // 总需求 > 可供应：“单位客户流量”进行有大到小排序，依次选择客户直到达到节点在当前时刻的上限
+                else {
+                    // 计算 单位客户流量
+                    vector<pair<int, int> > unit_user_flow;
+                    for (int k = 0; k < now_node.available.size(); ++k) {
+                        int now_user_idx = g_users[now_node.available[k]].index;
+                        float unit_flow = g_demand[real_time_idx][now_user_idx] / g_users[now_user_idx].available.size();
+                        unit_user_flow.emplace_back(make_pair(now_user_idx, unit_flow));
+                    }
+                    // 对其由大到小排序
+//                    sort(unit_user_flow.begin(), unit_user_flow.end(), Great);
+                    // 依次选择客户
+                    for (int k = 0; k < unit_user_flow.size(); ++k) {
+                        // 当前用户下标
+                        int now_user_idx = unit_user_flow[k].first;
+                        // 当前用户需求
+                        int now_user_demand = g_demand[real_time_idx][now_user_idx];
+                        // 当前服务器容量
+                        int now_can_supply = node_time_remain[now_node.index][real_time_idx];
+                        // 能放下
+                        if (now_user_demand <= now_can_supply) {
+                            // 更新容量和需求
+                            g_demand[real_time_idx][now_user_idx] = 0;
+                            node_time_remain[now_node.index][real_time_idx] -= now_user_demand;
+                            node_time_asked[now_node.index][real_time_idx].second -= now_user_demand;
+                            now_node.all_remain[real_time_idx] -= now_user_demand;
+                            sorted_node_time_asked[now_node.index][j].second -= now_user_demand;
+                            // 更新输出
+                            output[real_time_idx][now_user_idx][now_node.index] += now_user_demand;
+                            can_break = false;
+                        }
+                        // 放不下
+                        else {
+                            break;
+                        }
+                    }
+
+                }
+
+            }
+        }
+
+        // 需求不变，break
+        can_break = true;
+        if (can_break) {
+            break;
+        }
+
+    }
+    // 接之前的思路
+    // TODO
+
+
+    return output;
+
+}
+
 int main() {
 
     freopen(SOLUTION_PATH.c_str(), "w", stdout);
@@ -853,9 +992,11 @@ int main() {
     read_demand();
     read_bandwidth();
 
-    g_output = baseline_2();
+//    g_output = baseline_2();
 //    g_output = baseline();
-    optimize(g_output);
+    g_output = maximize_95plus();
+    baseline_2(g_output);
+//    optimize(g_output);
     prt(g_output);
 
     fclose(stdout);
