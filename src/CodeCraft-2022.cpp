@@ -670,7 +670,7 @@ void baseline_2(vector<vector<vector<int> > > &output) {
 // 替换比例
 const float G_SUB_RATIO_LEFT = 0.01;
 const float G_SUB_RATIO_RIGHT = 0.1;
-const float MAX_OPTIMIZE_LOOP = 25;
+const float MAX_OPTIMIZE_LOOP = 15;
 
 vector<vector<Common> > get_common_users_mat() {
     // 客户交集矩阵
@@ -800,8 +800,17 @@ void optimize(vector<vector<vector<int> > > &output) {
 
                 // 更新这两个服务器的 95 分位
                 now_node1.pair_history = now_node1.pair_history_unsorted;
+                // node1 的 95 分位会减小
+                int now95 = now_node1.idx_95;
+                for (int j = now95 - 1; j > 0; j--) {
+                    if (now_node1.pair_history[now95] < now_node1.pair_history[j]) {
+                        swap(now_node1.pair_history[now95], now_node1.pair_history[j]);
+                        now95--;
+                    }
+                }
+
+                // node2 的95 分位会增加
                 now_node2.pair_history = now_node2.pair_history_unsorted;
-                now_node1.get_95_pair();
                 now_node2.get_95_pair();
 
 
@@ -918,6 +927,13 @@ vector<vector<vector<int> > > maximize_95plus() {
                     }
                     // 对其由大到小排序
                     sort(unit_user_flow.begin(), unit_user_flow.end(), Great);
+                    // 计算 客户在当前时刻候选边缘节点的个数由小到大排序
+//                    for (int k = 0; k < now_node.available.size(); ++k) {
+//                        int now_user_idx = g_users[now_node.available[k]].index;
+//                        int ava = g_users[now_user_idx].available.size();
+//                        unit_user_flow.emplace_back(make_pair(now_user_idx, ava));
+//                    }
+//                    sort(unit_user_flow.begin(), unit_user_flow.end(), Less);
                     // 依次选择客户
                     for (int k = 0; k < unit_user_flow.size(); ++k) {
                         // 当前用户下标
@@ -1012,9 +1028,9 @@ vector<vector<vector<int> > > maximize_95plus() {
 
 int main() {
 
-//    clock_t t1 = clock();
+    clock_t t1 = clock();
 
-    freopen(SOLUTION_PATH.c_str(), "w", stdout);
+//    freopen(SOLUTION_PATH.c_str(), "w", stdout);
 
     read_conf();
 
@@ -1029,14 +1045,14 @@ int main() {
 //    double totaltime = (t3 - t1)*1.0 / CLOCKS_PER_SEC;
 //    cout <<"执行时间:" <<totaltime<<"秒" << endl;
     // baseline(g_output);
-//    optimize(g_output);
-    prt(g_output);
+    optimize(g_output);
+//    prt(g_output);
+//
+//    fclose(stdout);
 
-    fclose(stdout);
-
-//    clock_t t2 = clock();
-//    double totaltime1 = (t2 - t1)*1.0 / CLOCKS_PER_SEC;
-//    cout <<"执行时间:" <<totaltime1<<"秒" << endl;
+    clock_t t2 = clock();
+    double totaltime1 = (t2 - t1) * 1.0 / CLOCKS_PER_SEC;
+    cout << "执行时间:" << totaltime1 << "秒" << endl;
 
 
     return 0;

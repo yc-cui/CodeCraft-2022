@@ -155,6 +155,7 @@ public:
     }
 
     pair<int, int> get_95_pair() {
+//        InsertionSort(pair_history, pair_history.size());
         sort(pair_history.begin(), pair_history.end(), Less);
         idx_95 = ceil(pair_history.size() * 0.95) - 1;
         pair_percent_95 = pair_history[idx_95];
@@ -162,10 +163,7 @@ public:
     }
 
 };
-class Who {
-public:
 
-};
 
 class User {
 public:
