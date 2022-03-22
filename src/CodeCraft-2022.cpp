@@ -901,12 +901,25 @@ vector<vector<vector<int> > > maximize_95plus() {
         // 对于每个边缘节点 前5%（取下整），对应时刻
         for (int i = 0; i < g_nodes.size(); ++i) {
             int now_node_idx = nodes_series_2[i].first;
+            // 当前边缘节点
+            Node &now_node = g_nodes[now_node_idx];
+            if (now_node.available.size() == 0) {
+                continue;
+            }
+            for (int j = 0; j < g_demand.size(); ++j) {
+                int now_time_idx = j;
+                int sum = 0;
+                for (int k = 0; k < g_nodes[i].available.size(); ++k) {
+                    int now_user_idx = g_nodes[i].available[k];
+                    sum += g_demand[now_time_idx][now_user_idx];
+                }
+                node_time_asked[i][now_time_idx] = make_pair(now_time_idx, sum);
+            }
 //            int now_node_idx = i;
             // 每个节点的总需求按时间线从大到小排序
             vector<vector<pair<int, int> > > sorted_node_time_asked = node_time_asked;
             InsertionSort_form_big_to_small(sorted_node_time_asked[now_node_idx], sorted_node_time_asked[now_node_idx].size());
-            // 当前边缘节点
-            Node &now_node = g_nodes[now_node_idx];
+
             // 取到当前节点 前 5% 的所有时间点
             vector<pair<int, int> > now_time_line_sorted(sorted_node_time_asked[now_node.index].begin(),
                                                          sorted_node_time_asked[now_node.index].begin() + num_95plus);
@@ -928,6 +941,8 @@ vector<vector<vector<int> > > maximize_95plus() {
                     now_node.all_remain[real_time_idx] -= now_demand;
                     // 需求量减少
                     node_time_asked[now_node.index][real_time_idx].second = 0;
+                    // 更新该时间线上该用户的其他所有 avaliable 节点
+
                     sorted_node_time_asked[now_node.index][j].second = 0;
                     // 已分配，更新输出和剩余需求
                     for (int k = 0; k < now_node.available.size(); ++k) {
@@ -950,7 +965,7 @@ vector<vector<vector<int> > > maximize_95plus() {
                         unit_user_flow.emplace_back(make_pair(now_user_idx, unit_flow));
                     }
                     // 对其由大到小排序
-                    sort(unit_user_flow.begin(), unit_user_flow.end(), Great);
+                    sort(unit_user_flow.begin(), unit_user_flow.end(), Less);
                     // 计算 客户在当前时刻候选边缘节点的个数由小到大排序
 //                    for (int k = 0; k < now_node.available.size(); ++k) {
 //                        int now_user_idx = g_users[now_node.available[k]].index;
@@ -972,6 +987,11 @@ vector<vector<vector<int> > > maximize_95plus() {
                             g_demand[real_time_idx][now_user_idx] = 0;
                             node_time_remain[now_node.index][real_time_idx] -= now_user_demand;
                             node_time_asked[now_node.index][real_time_idx].second -= now_user_demand;
+//                            // 更新该时间线上该用户的其他所有 avaliable 节点
+//                            for (int l = 0; l < g_users[now_user_idx].available.size(); ++l) {
+//                                int another_node_idx = g_users[now_user_idx].available[l];
+//                                node_time_asked[another_node_idx][real_time_idx].second -= now_user_demand;
+//                            }
                             now_node.all_remain[real_time_idx] -= now_user_demand;
                             sorted_node_time_asked[now_node.index][j].second -= now_user_demand;
                             // 更新输出
@@ -980,7 +1000,7 @@ vector<vector<vector<int> > > maximize_95plus() {
                         }
                             // 放不下
                         else {
-                            break;
+//                            break;
                         }
                     }
 
