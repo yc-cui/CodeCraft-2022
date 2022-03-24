@@ -90,7 +90,7 @@ public:
     pair<int, int> pair_percent_95;
     int idx_95 = 0;
     int total_used = 0;
-    int used_5 = 0;
+    int use95=0;
     vector<int> available;
     vector<int> history;
     vector<int> all_remain;
@@ -126,6 +126,7 @@ public:
         this->all_remain = node.all_remain;
         this->pair_history = node.pair_history;
         this->pair_percent_95 = node.pair_percent_95;
+        this->use95=node.use95;
     }
 
     const Node& operator=(const Node& node) {
@@ -144,6 +145,7 @@ public:
         this->pair_history = node.pair_history;
         this->pair_percent_95 = node.pair_percent_95;
         this->all_remain = node.all_remain;
+        this->use95=node.use95;
 
     }
 

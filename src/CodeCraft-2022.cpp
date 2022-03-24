@@ -1149,14 +1149,18 @@ vector<vector<vector<int> > > maximize_95plus() {
 }
 
 // 找到 node_time_remain 的最大值及其索引
-vector<int> find_mat2d_max(vector<vector<int> > node_time_remain) {
+vector<int> find_mat2d_max(vector<vector<int> > node_time_asked, const set<int>& used_nodes) {
     int val = -1;
     int node_idx = -1;
     int time_idx = -1;
-    for (int i = 0; i < node_time_remain.size(); ++i) {
-        for (int j = 0; j < node_time_remain[i].size(); ++j) {
-            if (node_time_remain[i][j] > val) {
-                val = node_time_remain[i][j];
+    for (int i = 0; i < node_time_asked.size(); ++i) {
+        if (used_nodes.find(i) != used_nodes.end()) {
+            continue;
+        }
+
+        for (int j = 0; j < node_time_asked[i].size(); ++j) {
+            if (node_time_asked[i][j] > val) {
+                val = node_time_asked[i][j];
                 node_idx = i;
                 time_idx = j;
             }
@@ -1175,8 +1179,22 @@ vector<vector<vector<int> > > maximize_95plus_v2() {
     int num_95plus = g_demand.size() - g_demand.size() * 0.95;
 
     // 每个边缘节点 计算每个时刻 所有用户的总需求流量 [nodes size, timeline size] pair: time_index, asked
-    vector<vector<pair<int, int>>> node_time_asked(g_nodes.size(),
-                                                   vector<pair<int, int>>(g_demand.size(), make_pair(0, 0)));
+    vector<vector<int>> node_time_asked(g_nodes.size(),
+                                                   vector<int>(g_demand.size(),0));
+
+    for (int i = 0; i < g_nodes.size(); ++i) {
+        int sum_all_time = 0;
+        for (int j = 0; j < g_demand.size(); ++j) {
+            int now_time_idx = j;
+            int sum = 0;
+            for (int k = 0; k < g_nodes[i].available.size(); ++k) {
+                int now_user_idx = g_nodes[i].available[k];
+                sum += g_demand[now_time_idx][now_user_idx];
+            }
+            sum_all_time += sum;
+            node_time_asked[i][now_time_idx] = sum;
+        }
+    }
 
     // 每个边缘节点 每个时刻最大安排流量 [nodes size, timeline size]
     vector<vector<int> > node_time_remain(g_nodes.size(), vector<int>(g_demand.size(), 0));
@@ -1187,85 +1205,112 @@ vector<vector<vector<int> > > maximize_95plus_v2() {
         }
     }
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    int cnt=0;
+    set<int> used_nodes;
+    while (cnt<g_nodes.size()) {
+        vector<int> max_val_pos = find_mat2d_max(node_time_asked, used_nodes);
+        // 当前时间线的总需求量
+        int now_demand = max_val_pos[0];
+        // 当前节点下标
+        int now_node_idx = max_val_pos[1];
+        // 当前时间线的下标
+        int real_time_idx = max_val_pos[2];
+        // 当前边缘节点
+        Node &now_node = g_nodes[now_node_idx];
+        // 当前节点的 5% 已经安排满，继续下一节点
 
-    vector<int> max_val_pos = find_mat2d_max(node_time_remain);
-    // 当前时间线的总需求量
-    int now_demand = max_val_pos[0];
-    // 当前节点下标
-    int now_node_idx = max_val_pos[1];
-    // 当前时间线的下标
-    int real_time_idx = max_val_pos[2];
-    // 当前边缘节点
-    Node &now_node = g_nodes[now_node_idx];
-    // 当前节点的 5% 已经安排满，继续下一节点
-    // 当前时间线该服务器的可供应量
-    int can_supply = node_time_remain[now_node.index][real_time_idx];
-    // 总需求 <= 可供应：直接放置
-    if (can_supply >= now_demand) {
-        // 该服务器在该时间点的可供应量减少
-        node_time_remain[now_node.index][real_time_idx] -= now_demand;
-        now_node.all_remain[real_time_idx] -= now_demand;
-        // 需求量减少
-        node_time_asked[now_node.index][real_time_idx].second = 0;
-        // 已分配，更新输出和剩余需求
-        for (int k = 0; k < now_node.available.size(); ++k) {
-            int now_usr_idx = now_node.available[k];
-            // 更新输出
-            output[real_time_idx][now_usr_idx][now_node.index] += g_demand[real_time_idx][now_usr_idx];
-            // 更新 demand
-            g_demand[real_time_idx][now_usr_idx] = 0;
+        if(now_node.use95==num_95plus){
+//            for (int i = 0; i < node_time_asked[now_node_idx].size(); ++i) {
+//                node_time_asked[now_node_idx][i]=0;
+//            }
+            cnt++;
+            used_nodes.insert(now_node_idx);
+            continue;
         }
-    }
-    // 总需求 > 可供应：“单位客户流量”进行有大到小排序，依次选择客户直到达到节点在当前时刻的上限
-    else {
-        // 计算 单位客户流量
-        vector<pair<int, int> > unit_user_flow;
-        for (int k = 0; k < now_node.available.size(); ++k) {
-            int now_user_idx = g_users[now_node.available[k]].index;
-            float unit_flow =
-                    g_demand[real_time_idx][now_user_idx] / g_users[now_user_idx].available.size();
-            unit_user_flow.emplace_back(make_pair(now_user_idx, unit_flow));
+
+
+        // 当前时间线该服务器的可供应量
+        int can_supply = node_time_remain[now_node.index][real_time_idx];
+        // 总需求 <= 可供应：直接放置
+        if (can_supply >= now_demand) {
+            // 该服务器在该时间点的可供应量减少
+            node_time_remain[now_node.index][real_time_idx] -= now_demand;
+            now_node.all_remain[real_time_idx] -= now_demand;
+            // 需求量减少
+            node_time_asked[now_node.index][real_time_idx] = 0;
+            // 已分配，更新输出和剩余需求
+            for (int k = 0; k < now_node.available.size(); ++k) {
+                int now_usr_idx = now_node.available[k];
+                // 更新输出
+                output[real_time_idx][now_usr_idx][now_node.index] += g_demand[real_time_idx][now_usr_idx];
+                // 更新 demand
+                g_demand[real_time_idx][now_usr_idx] = 0;
+            }
         }
-        // 对其由大到小排序
-        sort(unit_user_flow.begin(), unit_user_flow.end(), Great);
-        // 计算 客户在当前时刻候选边缘节点的个数由小到大排序
+            // 总需求 > 可供应：“单位客户流量”进行有大到小排序，依次选择客户直到达到节点在当前时刻的上限
+        else {
+            // 计算 单位客户流量
+            vector<pair<int, int> > unit_user_flow;
+            for (int k = 0; k < now_node.available.size(); ++k) {
+                int now_user_idx = g_users[now_node.available[k]].index;
+                float unit_flow =
+                        g_demand[real_time_idx][now_user_idx] / g_users[now_user_idx].available.size();
+                unit_user_flow.emplace_back(make_pair(now_user_idx, unit_flow));
+            }
+            // 对其由大到小排序
+            sort(unit_user_flow.begin(), unit_user_flow.end(), Great);
+            // 计算 客户在当前时刻候选边缘节点的个数由小到大排序
 //                    for (int k = 0; k < now_node.available.size(); ++k) {
 //                        int now_user_idx = g_users[now_node.available[k]].index;
 //                        int ava = g_users[now_user_idx].available.size();
 //                        unit_user_flow.emplace_back(make_pair(now_user_idx, ava));
 //                    }
 //                    sort(unit_user_flow.begin(), unit_user_flow.end(), Less);
-        // 依次选择客户
-        for (int k = 0; k < unit_user_flow.size(); ++k) {
-            // 当前用户下标
-            int now_user_idx = unit_user_flow[k].first;
-            // 当前用户需求
-            int now_user_demand = g_demand[real_time_idx][now_user_idx];
-            // 当前服务器容量
-            int now_can_supply = node_time_remain[now_node.index][real_time_idx];
-            // 能放下
-            if (now_user_demand <= now_can_supply) {
-                // 更新容量和需求
-                g_demand[real_time_idx][now_user_idx] = 0;
-                node_time_remain[now_node.index][real_time_idx] -= now_user_demand;
-                node_time_asked[now_node.index][real_time_idx].second -= now_user_demand;
+            // 依次选择客户
+            for (int k = 0; k < unit_user_flow.size(); ++k) {
+                // 当前用户下标
+                int now_user_idx = unit_user_flow[k].first;
+                // 当前用户需求
+                int now_user_demand = g_demand[real_time_idx][now_user_idx];
+                // 当前服务器容量
+                int now_can_supply = node_time_remain[now_node.index][real_time_idx];
+                // 能放下
+                if (now_user_demand <= now_can_supply) {
+                    // 更新容量和需求
+                    g_demand[real_time_idx][now_user_idx] = 0;
+                    node_time_remain[now_node.index][real_time_idx] -= now_user_demand;
+                    node_time_asked[now_node.index][real_time_idx] -= now_user_demand;
 //                            // 更新该时间线上该用户的其他所有 avaliable 节点
 //                            for (int l = 0; l < g_users[now_user_idx].available.size(); ++l) {
 //                                int another_node_idx = g_users[now_user_idx].available[l];
 //                                node_time_asked[another_node_idx][real_time_idx].second -= now_user_demand;
 //                            }
-                now_node.all_remain[real_time_idx] -= now_user_demand;
-                // 更新输出
-                output[real_time_idx][now_user_idx][now_node.index] += now_user_demand;
-            }
-            // 放不下
-            else {
+                    now_node.all_remain[real_time_idx] -= now_user_demand;
+                    // 更新输出
+                    output[real_time_idx][now_user_idx][now_node.index] += now_user_demand;
+                }
+                    // 放不下
+                else {
 //                            break;
+                }
+            }
+
+        }
+        for (int i = 0; i < g_nodes.size(); ++i) {
+            int sum_all_time = 0;
+            for (int j = 0; j < g_demand.size(); ++j) {
+                int now_time_idx = j;
+                int sum = 0;
+                for (int k = 0; k < g_nodes[i].available.size(); ++k) {
+                    int now_user_idx = g_nodes[i].available[k];
+                    sum += g_demand[now_time_idx][now_user_idx];
+                }
+                sum_all_time += sum;
+                node_time_asked[i][now_time_idx] = sum;
             }
         }
-
+        now_node.use95++;
     }
-
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // 接之前的思路
     // TODO
