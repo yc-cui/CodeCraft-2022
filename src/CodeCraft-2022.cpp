@@ -1097,7 +1097,6 @@ vector<vector<vector<int> > > maximize_95plus() {
 
     }
 
-
     for (int i = 0; i < g_demand.size(); i++) {
         int all_demand = 0;
         for (int l = 0; l < g_demand[i].size(); ++l) {
