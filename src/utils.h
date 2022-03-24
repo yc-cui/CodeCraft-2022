@@ -90,6 +90,7 @@ public:
     pair<int, int> pair_percent_95;
     int idx_95 = 0;
     int total_used = 0;
+    int used_5 = 0;
     vector<int> available;
     vector<int> history;
     vector<int> all_remain;

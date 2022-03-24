@@ -1061,8 +1061,9 @@ vector<vector<vector<int> > > maximize_95plus() {
                 // 对于每个节点
                 for (int k = 0; k < user_av.size(); ++k) {
                     int now_node_idx = user_av[k];
-                    Node& now_node = g_nodes[now_node_idx];
-                    if (single > now_node.bandwidth || single <= now_node.bandwidth - now_node.all_remain[now_time_idx]) {
+                    Node &now_node = g_nodes[now_node_idx];
+                    if (single > now_node.bandwidth ||
+                        single <= now_node.bandwidth - now_node.all_remain[now_time_idx]) {
                         cannot_put.insert(now_node_idx);
                         break;
                     }
@@ -1085,7 +1086,7 @@ vector<vector<vector<int> > > maximize_95plus() {
             // 更新 user_av
             for (int m = 0; m < user_av.size(); ++m) {
                 int now_node_idx = user_av[m];
-                Node& now_node = g_nodes[now_node_idx];
+                Node &now_node = g_nodes[now_node_idx];
                 int addition = single - (now_node.bandwidth - now_node.all_remain[now_time_idx]);
                 now_node.all_remain[now_time_idx] -= addition;
                 g_demand[now_time_idx][now_user_idx] -= addition;
@@ -1147,6 +1148,256 @@ vector<vector<vector<int> > > maximize_95plus() {
     return output;
 
 }
+
+// 找到 node_time_remain 的最大值及其索引
+vector<int> find_mat2d_max(vector<vector<int> > node_time_remain) {
+    int val = -1;
+    int node_idx = -1;
+    int time_idx = -1;
+    for (int i = 0; i < node_time_remain.size(); ++i) {
+        for (int j = 0; j < node_time_remain[i].size(); ++j) {
+            if (node_time_remain[i][j] > val) {
+                val = node_time_remain[i][j];
+                node_idx = i;
+                time_idx = j;
+            }
+        }
+    }
+    vector<int> m{val, node_idx, time_idx};
+    return m;
+}
+
+vector<vector<vector<int> > > maximize_95plus_v2() {
+    // 输出
+    vector<vector<vector<int> > > output(g_demand.size(), vector<vector<int> >(g_users.size(),
+                                                                               vector<int>(g_nodes.size(), 0)));
+    // 前 5% 的时间节点个数
+
+    int num_95plus = g_demand.size() - g_demand.size() * 0.95;
+
+    // 每个边缘节点 计算每个时刻 所有用户的总需求流量 [nodes size, timeline size] pair: time_index, asked
+    vector<vector<pair<int, int>>> node_time_asked(g_nodes.size(),
+                                                   vector<pair<int, int>>(g_demand.size(), make_pair(0, 0)));
+
+    // 每个边缘节点 每个时刻最大安排流量 [nodes size, timeline size]
+    vector<vector<int> > node_time_remain(g_nodes.size(), vector<int>(g_demand.size(), 0));
+    for (int i = 0; i < g_nodes.size(); ++i) {
+        for (int j = 0; j < g_demand.size(); ++j) {
+            // “节点-时刻”二维表
+            node_time_remain[i][j] = g_nodes[i].bandwidth;
+        }
+    }
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    vector<int> max_val_pos = find_mat2d_max(node_time_remain);
+    // 当前时间线的总需求量
+    int now_demand = max_val_pos[0];
+    // 当前节点下标
+    int now_node_idx = max_val_pos[1];
+    // 当前时间线的下标
+    int real_time_idx = max_val_pos[2];
+    // 当前边缘节点
+    Node &now_node = g_nodes[now_node_idx];
+    // 当前节点的 5% 已经安排满，继续下一节点
+    // 当前时间线该服务器的可供应量
+    int can_supply = node_time_remain[now_node.index][real_time_idx];
+    // 总需求 <= 可供应：直接放置
+    if (can_supply >= now_demand) {
+        // 该服务器在该时间点的可供应量减少
+        node_time_remain[now_node.index][real_time_idx] -= now_demand;
+        now_node.all_remain[real_time_idx] -= now_demand;
+        // 需求量减少
+        node_time_asked[now_node.index][real_time_idx].second = 0;
+        // 已分配，更新输出和剩余需求
+        for (int k = 0; k < now_node.available.size(); ++k) {
+            int now_usr_idx = now_node.available[k];
+            // 更新输出
+            output[real_time_idx][now_usr_idx][now_node.index] += g_demand[real_time_idx][now_usr_idx];
+            // 更新 demand
+            g_demand[real_time_idx][now_usr_idx] = 0;
+        }
+    }
+    // 总需求 > 可供应：“单位客户流量”进行有大到小排序，依次选择客户直到达到节点在当前时刻的上限
+    else {
+        // 计算 单位客户流量
+        vector<pair<int, int> > unit_user_flow;
+        for (int k = 0; k < now_node.available.size(); ++k) {
+            int now_user_idx = g_users[now_node.available[k]].index;
+            float unit_flow =
+                    g_demand[real_time_idx][now_user_idx] / g_users[now_user_idx].available.size();
+            unit_user_flow.emplace_back(make_pair(now_user_idx, unit_flow));
+        }
+        // 对其由大到小排序
+        sort(unit_user_flow.begin(), unit_user_flow.end(), Great);
+        // 计算 客户在当前时刻候选边缘节点的个数由小到大排序
+//                    for (int k = 0; k < now_node.available.size(); ++k) {
+//                        int now_user_idx = g_users[now_node.available[k]].index;
+//                        int ava = g_users[now_user_idx].available.size();
+//                        unit_user_flow.emplace_back(make_pair(now_user_idx, ava));
+//                    }
+//                    sort(unit_user_flow.begin(), unit_user_flow.end(), Less);
+        // 依次选择客户
+        for (int k = 0; k < unit_user_flow.size(); ++k) {
+            // 当前用户下标
+            int now_user_idx = unit_user_flow[k].first;
+            // 当前用户需求
+            int now_user_demand = g_demand[real_time_idx][now_user_idx];
+            // 当前服务器容量
+            int now_can_supply = node_time_remain[now_node.index][real_time_idx];
+            // 能放下
+            if (now_user_demand <= now_can_supply) {
+                // 更新容量和需求
+                g_demand[real_time_idx][now_user_idx] = 0;
+                node_time_remain[now_node.index][real_time_idx] -= now_user_demand;
+                node_time_asked[now_node.index][real_time_idx].second -= now_user_demand;
+//                            // 更新该时间线上该用户的其他所有 avaliable 节点
+//                            for (int l = 0; l < g_users[now_user_idx].available.size(); ++l) {
+//                                int another_node_idx = g_users[now_user_idx].available[l];
+//                                node_time_asked[another_node_idx][real_time_idx].second -= now_user_demand;
+//                            }
+                now_node.all_remain[real_time_idx] -= now_user_demand;
+                // 更新输出
+                output[real_time_idx][now_user_idx][now_node.index] += now_user_demand;
+            }
+            // 放不下
+            else {
+//                            break;
+            }
+        }
+
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // 接之前的思路
+    // TODO
+    vector<pair<int, int> > unit_user_flow;
+    for (int k = 0; k < g_users.size(); ++k) {
+        int now_user_idx = g_users[k].index;
+        int ava = g_users[now_user_idx].available.size();
+        unit_user_flow.emplace_back(make_pair(now_user_idx, ava));
+    }
+    sort(unit_user_flow.begin(), unit_user_flow.end(), Less);
+
+    for (int i = 0; i < g_demand.size(); ++i) {
+        int now_time_idx = i;
+        // 所有用户
+        for (int j = 0; j < g_users.size(); ++j) {
+            int now_user_idx = unit_user_flow[j].first;
+            // 用户当前需求
+            int now_user_demand = g_demand[now_time_idx][now_user_idx];
+            // 需求等于0，下一用户
+            if (now_user_demand == 0) {
+                continue;
+            }
+            // 该用户能连通的所有节点下标
+            vector<int> user_av = g_users[now_user_idx].available;
+            int single = 0;
+            // 均分后的需求 < 该节点 remain or 均分后的需求 > 该节点带宽，不行
+            while (true) {
+                if (user_av.empty()) {
+                    break;
+                }
+
+                // 所有可达节点总需求
+                int sum = 0;
+                for (int k = 0; k < user_av.size(); ++k) {
+                    int now_node_idx = user_av[k];
+                    sum += g_nodes[now_node_idx].bandwidth - g_nodes[now_node_idx].all_remain[now_time_idx];
+                }
+                // 均分全部需求
+                single = (now_user_demand + sum) / user_av.size();
+
+                set<int> cannot_put;
+                // 对于每个节点
+                for (int k = 0; k < user_av.size(); ++k) {
+                    int now_node_idx = user_av[k];
+                    Node &now_node = g_nodes[now_node_idx];
+                    if (single > now_node.bandwidth ||
+                        single <= now_node.bandwidth - now_node.all_remain[now_time_idx]) {
+                        cannot_put.insert(now_node_idx);
+                        break;
+                    }
+                }
+
+                if (cannot_put.empty()) {
+                    break;
+                }
+
+                vector<int> temp;
+                for (int l = 0; l < user_av.size(); ++l) {
+                    int now_node_idx = user_av[l];
+                    if (cannot_put.find(now_node_idx) == cannot_put.end()) {
+                        temp.emplace_back(now_node_idx);
+                    }
+                }
+                user_av = temp;
+
+            }
+            // 更新 user_av
+            for (int m = 0; m < user_av.size(); ++m) {
+                int now_node_idx = user_av[m];
+                Node &now_node = g_nodes[now_node_idx];
+                int addition = single - (now_node.bandwidth - now_node.all_remain[now_time_idx]);
+                now_node.all_remain[now_time_idx] -= addition;
+                g_demand[now_time_idx][now_user_idx] -= addition;
+                output[now_time_idx][now_user_idx][now_node_idx] += addition;
+            }
+
+        }
+
+    }
+
+    for (int i = 0; i < g_demand.size(); i++) {
+        int all_demand = 0;
+        for (int l = 0; l < g_demand[i].size(); ++l) {
+            all_demand += g_demand[i][l];
+        }
+        if (all_demand == 0) {
+            continue;
+        } else {
+            for (int l = 0; l < g_demand[i].size(); ++l) {
+                if (all_demand == 0)break;
+                if (g_demand[i][l] > 0) {
+                    int single = g_demand[i][l] / g_users[l].available.size();
+                    for (int j = 0; j < g_users[l].available.size(); ++j) {
+                        int now_remain = g_nodes[g_users[l].available[j]].all_remain[i];
+                        if (now_remain > 0) {
+                            if (single > now_remain) {
+                                g_demand[i][l] -= now_remain;
+                                g_nodes[g_users[l].available[j]].all_remain[i] = 0;
+                                output[i][l][g_users[l].available[j]] += now_remain;
+                            } else {
+                                g_nodes[g_users[l].available[j]].all_remain[i] -= single;
+                                output[i][l][g_users[l].available[j]] += single;
+                                all_demand -= single;
+                                g_demand[i][l] -= single;
+                            }
+                        }
+                    }
+                    for (int j = 0; j < g_users[l].available.size(); ++j) {
+                        int now_remain = g_nodes[g_users[l].available[j]].all_remain[i];
+                        if (now_remain > 0) {
+                            if (g_demand[i][l] > now_remain) {
+                                g_demand[i][l] -= now_remain;
+                                g_nodes[g_users[l].available[j]].all_remain[i] = 0;
+                                output[i][l][g_users[l].available[j]] += now_remain;
+                            } else {
+                                g_nodes[g_users[l].available[j]].all_remain[i] -= g_demand[i][l];
+                                output[i][l][g_users[l].available[j]] += g_demand[i][l];
+                                all_demand -= g_demand[i][l];
+                                g_demand[i][l] -= g_demand[i][l];
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return output;
+
+}
+
 
 int main() {
 
