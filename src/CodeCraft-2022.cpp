@@ -34,6 +34,8 @@ vector<User> g_users;
 vector<Time> g_times;
 vector<vector<int>> g_qos;
 vector<vector<int>> g_demand;
+map<string, int> name2idx_user;
+map<string, int> name2idx_node;
 vector<vector<vector<int> > > g_output;
 vector<vector<Common> > g_common_users_mat;
 
@@ -53,6 +55,7 @@ void read_qos() {
         } else {
             int pos = g_users.size();
             g_users.emplace_back(User(str, pos));
+            name2idx_user[str] = pos;
         }
     }
     //    for (int i = 0; i < g_users.size(); ++i) {
@@ -67,6 +70,7 @@ void read_qos() {
         while (getline(ss, str, ',')) {
             if (cnt == -1) {
                 g_nodes.emplace_back(Node(str, g_nodes.size()));
+                name2idx_node[str] = g_nodes.size() - 1;
             } else {
                 int current_qos = atoi(str.c_str());
                 lineArray.push_back(current_qos);
@@ -89,17 +93,29 @@ void read_demand() {
     data.open(DATA_PATH + "demand.csv");
     std::string tmp_line;
     getline(data, tmp_line);
+    stringstream ss(tmp_line);
+    vector<string> names_non_order;
+    string str;
+    int is_first = true;
+    while (getline(ss, str, ',')) {
+        if (is_first) {
+            is_first = false;
+        } else {
+            names_non_order.emplace_back(str);
+        }
+    }
     while (getline(data, tmp_line)) {
         stringstream ss(tmp_line);
         string str;
-        vector<int> lineArray;
+        vector<int> lineArray(g_users.size(), 0);
         int is_first = true;
+        int cnt = 0;
         while (getline(ss, str, ',')) {
             if (is_first) {
                 g_times.emplace_back(Time(str, g_times.size()));
                 is_first = false;
             } else {
-                lineArray.push_back(atoi(str.c_str()));
+                lineArray[name2idx_user[names_non_order[cnt++]]] = atoi(str.c_str());
             }
         }
         g_demand.emplace_back(lineArray);
@@ -118,19 +134,32 @@ void read_bandwidth() {
     data.open(DATA_PATH + "site_bandwidth.csv");
     std::string tmp_line;
     getline(data, tmp_line);
+//    stringstream ss(tmp_line);
+//    vector<string> names_non_order;
+//    string str;
+//    int is_first = true;
+//    while (getline(ss, str, ',')) {
+//        if (is_first) {
+//            is_first = false;
+//        } else {
+//            names_non_order.emplace_back(str);
+//        }
+//    }
     int cnt = 0;
     while (getline(data, tmp_line)) {
         stringstream ss(tmp_line);
         string str;
         int is_first = true;
+        int real_node_idx = 0;
         while (getline(ss, str, ',')) {
             if (is_first) {
                 is_first = false;
+                real_node_idx = name2idx_node[str];
             } else {
                 int idx = cnt++;
-                g_nodes[idx].bandwidth = atoi(str.c_str());
-                g_nodes[idx].remain = g_nodes[idx].bandwidth;
-                g_nodes[idx].all_remain = vector<int>(g_demand.size(), g_nodes[idx].bandwidth);
+                g_nodes[real_node_idx].bandwidth = atoi(str.c_str());
+                g_nodes[real_node_idx].remain = g_nodes[real_node_idx].bandwidth;
+                g_nodes[real_node_idx].all_remain = vector<int>(g_demand.size(), g_nodes[real_node_idx].bandwidth);
             }
         }
     }
