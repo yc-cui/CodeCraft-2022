@@ -8,7 +8,8 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
-
+#include <set>
+#include <unordered_set>
 using namespace std;
 
 // 字符串两边的\r\n
@@ -19,6 +20,11 @@ string trim(string str) {
     str.erase(std::remove(str.begin(), str.end(), '\r'), str.end());
     str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
     return str;
+}
+
+void cout_details(int node_idx, int user_idx, int time_idx, int now_demand) {
+    cout << endl << "node: " << node_idx << " ,user: " << user_idx << " ,time: " << time_idx
+         << " total demand:" << now_demand << endl;
 }
 
 void InsertionSort(vector<int> &a, int len) {
@@ -69,6 +75,21 @@ void InsertionSort_form_big_to_small(vector<pair<int, int> > &a, int len) {
         a[i + 1] = key;
     }
 }
+
+
+
+void change_idx(vector<pair<int, int> > &a, int len,int where) {
+    int temp=where+1;
+    for (int l = where; l <a.size() ; ++l) {
+        if(a[l].second<a[temp].second){
+            swap(a[l],a[temp]);
+            temp++;
+        } else{
+            break;
+        }
+    }
+}
+
 // 从小到大
 bool Less(const pair<int, int>& s1, const pair<int, int>& s2) {
     return s1.second < s2.second;
@@ -77,6 +98,32 @@ bool Less(const pair<int, int>& s1, const pair<int, int>& s2) {
 bool Great(const pair<int, int>& s1, const pair<int, int>& s2) {
     return s1.second > s2.second;
 }
+/*
+arrat：数组 ， n:数组的大小;  target:查找的数据； 返回target所在数组的下标
+*/
+int binarySearch2(vector<pair<int,int>> array, int n, int target) {
+    int low = 0, high = n, middle = 0;
+
+    while(low < high) {
+
+        middle = (low + high)/2;
+        if(target == array[middle].first) {
+            return middle;
+        } else if(target < array[middle].first) {
+            high = middle;
+        } else if(target > array[middle].first) {
+            low = middle + 1;
+        }
+    }
+    return -1;
+}
+class cmp {
+public:
+    bool operator()(const pair<int, int>& i, const pair<int, int>& j) {
+        return i.first > j.first;
+    }
+};
+
 
 class Node {
 public:
@@ -94,6 +141,7 @@ public:
     vector<int> available;
     vector<int> history;
     vector<int> all_remain;
+    vector<vector <int> > time_not_available;
     vector<pair<int, int> > pair_history;
     vector<pair<int, int> > pair_history_unsorted;
 
@@ -126,10 +174,11 @@ public:
         this->all_remain = node.all_remain;
         this->pair_history = node.pair_history;
         this->pair_percent_95 = node.pair_percent_95;
+        this->time_not_available = node.time_not_available;
         this->use95=node.use95;
     }
 
-    const Node& operator=(const Node& node) {
+    Node& operator=(const Node& node) {
         this->name = node.name;
         this->index = node.index;
         this->remain = node.remain;
@@ -141,12 +190,13 @@ public:
         this->idx_95 = node.idx_95;
         this->history = node.history;
         this->total_used = node.total_used;
+        this->time_not_available = node.time_not_available;
         this->pair_history_unsorted = node.pair_history_unsorted;
         this->pair_history = node.pair_history;
         this->pair_percent_95 = node.pair_percent_95;
         this->all_remain = node.all_remain;
         this->use95=node.use95;
-
+        return *this;
     }
 
 
@@ -173,6 +223,7 @@ public:
     string name;
     int index;
     vector<int> available;
+    vector<vector<int> > time_not_available;
 
     User(string name, int index) {
         this->name = trim(name);
@@ -302,4 +353,28 @@ vector<int> randperm(int num) {
     random_shuffle(temp.begin(), temp.end());
 
     return temp;
+}
+
+long long compute_cost(vector<vector<vector<int> > >  output) {
+
+    int num_nodes = output[0][1].size();
+    int num_users = output[0].size();
+    vector<vector<int> > history(num_nodes, vector<int>(output.size(), 0));
+    for (int l = 0; l < output.size(); ++l) {
+        for (int i = 0; i < num_nodes; ++i) {
+            int sum = 0;
+            for (int j = 0; j < num_users; ++j) {
+                sum += output[l][j][i];
+            }
+            history[i][l] = sum;
+        }
+    }
+    int idx_95 = ceil(output.size() * 0.95) - 1;
+    long long cost = 0;
+    for (int i = 0; i < num_nodes; ++i) {
+        sort(history[i].begin(), history[i].end());
+        cost += history[i][idx_95];
+    }
+
+    return cost;
 }
