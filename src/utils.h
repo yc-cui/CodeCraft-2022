@@ -10,6 +10,11 @@
 #include <map>
 #include <set>
 #include <unordered_set>
+#include <sys/timeb.h>
+#include <climits>
+#include <unistd.h>
+#include <ctime>
+
 using namespace std;
 
 // 字符串两边的\r\n
@@ -50,6 +55,7 @@ void InsertionSort_form_big_to_small(vector<int> &a, int len) {
         a[i + 1] = key;
     }
 }
+
 // index, value
 void InsertionSort(vector<pair<int, int> > &a, int len) {
     for (int j = 1; j < len; j++) {
@@ -77,49 +83,51 @@ void InsertionSort_form_big_to_small(vector<pair<int, int> > &a, int len) {
 }
 
 
-
-void change_idx(vector<pair<int, int> > &a, int len,int where) {
-    int temp=where+1;
-    for (int l = where; l <a.size() ; ++l) {
-        if(a[l].second<a[temp].second){
-            swap(a[l],a[temp]);
+void change_idx(vector<pair<int, int> > &a, int len, int where) {
+    int temp = where + 1;
+    for (int l = where; l < a.size(); ++l) {
+        if (a[l].second < a[temp].second) {
+            swap(a[l], a[temp]);
             temp++;
-        } else{
+        } else {
             break;
         }
     }
 }
 
 // 从小到大
-bool Less(const pair<int, int>& s1, const pair<int, int>& s2) {
+bool Less(const pair<int, int> &s1, const pair<int, int> &s2) {
     return s1.second < s2.second;
 }
+
 // 从大到小
-bool Great(const pair<int, int>& s1, const pair<int, int>& s2) {
+bool Great(const pair<int, int> &s1, const pair<int, int> &s2) {
     return s1.second > s2.second;
 }
+
 /*
 arrat：数组 ， n:数组的大小;  target:查找的数据； 返回target所在数组的下标
 */
-int binarySearch2(vector<pair<int,int>> array, int n, int target) {
+int binarySearch2(vector<pair<int, int>> array, int n, int target) {
     int low = 0, high = n, middle = 0;
 
-    while(low < high) {
+    while (low < high) {
 
-        middle = (low + high)/2;
-        if(target == array[middle].first) {
+        middle = (low + high) / 2;
+        if (target == array[middle].first) {
             return middle;
-        } else if(target < array[middle].first) {
+        } else if (target < array[middle].first) {
             high = middle;
-        } else if(target > array[middle].first) {
+        } else if (target > array[middle].first) {
             low = middle + 1;
         }
     }
     return -1;
 }
+
 class cmp {
 public:
-    bool operator()(const pair<int, int>& i, const pair<int, int>& j) {
+    bool operator()(const pair<int, int> &i, const pair<int, int> &j) {
         return i.first > j.first;
     }
 };
@@ -137,11 +145,11 @@ public:
     pair<int, int> pair_percent_95;
     int idx_95 = 0;
     int total_used = 0;
-    int use95=0;
+    int use95 = 0;
     vector<int> available;
     vector<int> history;
     vector<int> all_remain;
-    vector<vector <int> > time_not_available;
+    vector<vector<int> > time_not_available;
     vector<pair<int, int> > pair_history;
     vector<pair<int, int> > pair_history_unsorted;
 
@@ -175,10 +183,10 @@ public:
         this->pair_history = node.pair_history;
         this->pair_percent_95 = node.pair_percent_95;
         this->time_not_available = node.time_not_available;
-        this->use95=node.use95;
+        this->use95 = node.use95;
     }
 
-    Node& operator=(const Node& node) {
+    Node &operator=(const Node &node) {
         this->name = node.name;
         this->index = node.index;
         this->remain = node.remain;
@@ -195,7 +203,7 @@ public:
         this->pair_history = node.pair_history;
         this->pair_percent_95 = node.pair_percent_95;
         this->all_remain = node.all_remain;
-        this->use95=node.use95;
+        this->use95 = node.use95;
         return *this;
     }
 
@@ -234,16 +242,18 @@ public:
 class Common {
 public:
     Common() {}
+
     Common(vector<int> common_users) {
         this->common_users = common_users;
     }
 
     vector<int> common_users;
+
     Common(const Common &common) {
         this->common_users = common.common_users;
     }
 
-    const Common& operator=(const Common& common) {
+    const Common &operator=(const Common &common) {
         this->common_users = common.common_users;
     }
 };
@@ -342,9 +352,12 @@ void logger_line1(User user, map<int, Node> nodes) {
     logger_nodes(nodes);
 }
 
+
 // 随机数排列 num: 总长度
 vector<int> randperm(int num) {
-
+    timeb timeSeed;
+    ftime(&timeSeed);
+    srand(timeSeed.time * 1000 + timeSeed.millitm);
     vector<int> temp;
     for (int i = 0; i < num; ++i) {
         temp.push_back(i);
@@ -355,7 +368,7 @@ vector<int> randperm(int num) {
     return temp;
 }
 
-long long compute_cost(vector<vector<vector<int> > >  output) {
+long long compute_cost(vector<vector<vector<int> > > output) {
 
     int num_nodes = output[0][1].size();
     int num_users = output[0].size();
@@ -378,3 +391,9 @@ long long compute_cost(vector<vector<vector<int> > >  output) {
 
     return cost;
 }
+
+void delay(int time) {
+    clock_t now = clock();
+    while (clock() - now < time);
+}
+
