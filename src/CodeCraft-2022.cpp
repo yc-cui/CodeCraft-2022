@@ -1292,131 +1292,133 @@ vector<vector<Common> > get_common_users_mat() {
     return common_users_mat;
 }
 
-//void optimize_v2(vector<vector<vector<int> > > &output, vector<vector<Common> > common_users_mat) {
-//    for (int l = 0; l < output.size(); ++l) {
-//        for (int i = 0; i < g_nodes.size(); ++i) {
-//            int sum = 0;
-//            for (int j = 0; j < g_users.size(); ++j) {
-//                sum += output[l][j][i];
-//            }
-//            if (g_nodes[i].pair_history.size() != output.size()) {
-//                g_nodes[i].pair_history.emplace_back(make_pair(l, sum));
-//            } else {
-//                g_nodes[i].pair_history[l] = make_pair(l, sum);
-//            }
-//
-//        }
-//    }
-//    // 找出95分位最大的优化
-//    int max95node_idx = -1;
-//    int max95val = -1;
-//    int max95time_idx = -1;
-//    for (int i = 0; i < g_nodes.size(); ++i) {
-//        g_nodes[i].pair_history_unsorted = g_nodes[i].pair_history;
-//        pair<int, int> val = g_nodes[i].get_95_pair();
-//        if (val.second > max95val) {
-//            max95val = val.second;
-//            max95node_idx = i;
-//            max95time_idx = val.first;
-//        }
-//    }
-//    // 待优化节点
-//    Node &node_optimized = g_nodes[max95node_idx];
-//    vector<vector<int> > &now_time = output[max95time_idx];
-//    vector<pair<int, int> > nodeidx_distance;
-//    vector<pair<int, int> > nodeidx_common;
-//    for (int i = 0; i < g_nodes.size(); ++i) {
-//        if (i == max95node_idx) {
-//            continue;
-//        } else {
-//            int now_node_idx = i;
-//            Node &now_node = g_nodes[now_node_idx];
-//            int distance = 0;
-//            for (int j = 0; j < output.size(); ++j) {
-//                if (now_node.pair_history[j].first == max95time_idx) {
-//                    break;
-//                } else {
-//                    distance++;
-//                }
-//            }
-//            // distance 越小越好， common 越大越好
-//            nodeidx_distance.emplace_back(make_pair(now_node_idx, distance));
-//            nodeidx_common.emplace_back(make_pair(now_node_idx, 0));
-//        }
-//    }
-//    InsertionSort(nodeidx_distance, nodeidx_distance.size());
-//    for (int i = 0; i < g_nodes.size(); ++i) {
-//        if (i == max95node_idx) {
-//            continue;
-//        } else {
-//            nodeidx_common[i].first = nodeidx_distance[i].first;
-//            nodeidx_common[i].second = common_users_mat[max95node_idx][nodeidx_common[i].first].common_users.size();
-//        }
-//    }
-//    InsertionSort_form_big_to_small(nodeidx_common, nodeidx_common.size());
-//    // 最大优化量
-//    int max_optimize_value = node_optimized.pair_history[node_optimized.idx_95].second;
-//    int sum_optimize_value = 0;
-//    bool done = false;
-//    for (int i = 0; i < nodeidx_common.size(); ++i) {
-//        // 共同用户为0  无法交换
-//        if (nodeidx_common[i].second == 0) {
-//            break;
-//        }
-//        int sum = 0;
-//        int now_node_idx = nodeidx_common[i].first;
-//        Node &now_node = g_nodes[now_node_idx];
-//        int now_node_now_time_cost = now_node.pair_history_unsorted[max95time_idx].second;
-//        // 当前时刻成本 > 95 分位， 下一节点
-//        int biggest = now_node.pair_percent_95.second - now_node_now_time_cost;
-//        if (biggest <= 0) {
-//            continue;
-//        }
-//        vector<int> common = common_users_mat[now_node_idx][max95node_idx].common_users;
-//
-//        for (int j = 0; j < common.size(); ++j) {
-//            int now_user_idx = common[j];
-//            // 增大
-//            int now_time_node_usr_val = now_time[now_user_idx][now_node_idx];
-//            // 减小
-//            int now_time_node_usr_val95 = now_time[now_user_idx][max95node_idx];
-//            // 变化的值
-//            int delta = biggest;
-//            // 减小最少到 0
-//            if (now_time_node_usr_val95 <= delta) {
-//                delta = now_time_node_usr_val95;
-//            }
-//            // 增大不能超过 95 分位
-//            if (sum + delta >= biggest) {
-//                break;
-//            }
-//            // 总优化 不能超过最大优化量
-//            if (sum_optimize_value + delta >= max_optimize_value) {
-//                done = true;
-//                break;
-//            }
-//            sum_optimize_value += delta;
-//            sum += delta;
-//            biggest -= delta;
-//
-//            now_time[now_user_idx][now_node_idx] += delta;
-//            now_time[now_user_idx][max95node_idx] -= delta;
-//
-//            if (biggest <= 0) {
-//                break;
-//            }
-//            // 交换 delta
-//
-////            cout << delta << endl;
-//
-//        }
-//        if (done) {
-//            break;
-//        }
-//    }
-//
-//
-//}
+void optimize_v2(vector<vector<vector<int> > > &output, vector<vector<Common> > common_users_mat) {
+    for (int l = 0; l < output.size(); ++l) {
+        for (int i = 0; i < g_nodes.size(); ++i) {
+            int sum = 0;
+            for (int j = 0; j < g_users.size(); ++j) {
+                sum += output[l][j][i];
+            }
+            if (g_nodes[i].pair_history.size() != output.size()) {
+                g_nodes[i].pair_history.emplace_back(make_pair(l, sum));
+            } else {
+                g_nodes[i].pair_history[l] = make_pair(l, sum);
+            }
+
+        }
+    }
+    // 找出95分位最大的优化
+    int max95node_idx = -1;
+    int max95val = -1;
+    int max95time_idx = -1;
+    for (int i = 0; i < g_nodes.size(); ++i) {
+        g_nodes[i].pair_history_unsorted = g_nodes[i].pair_history;
+        pair<int, int> val = g_nodes[i].get_95_pair();
+        if (val.second > max95val) {
+            max95val = val.second;
+            max95node_idx = i;
+            max95time_idx = val.first;
+        }
+    }
+    // 待优化节点
+    Node &node_optimized = g_nodes[max95node_idx];
+    vector<vector<int> > &now_time = output[max95time_idx];
+    vector<pair<int, int> > nodeidx_distance;
+    vector<pair<int, int> > nodeidx_common;
+    for (int i = 0; i < g_nodes.size(); ++i) {
+        if (i == max95node_idx) {
+            continue;
+        } else {
+            int now_node_idx = i;
+            Node &now_node = g_nodes[now_node_idx];
+            int distance = 0;
+            for (int j = 0; j < output.size(); ++j) {
+                if (now_node.pair_history[j].first == max95time_idx) {
+                    break;
+                } else {
+                    distance++;
+                }
+            }
+            // distance 越小越好， common 越大越好
+            nodeidx_distance.emplace_back(make_pair(now_node_idx, distance));
+            nodeidx_common.emplace_back(make_pair(now_node_idx, 0));
+        }
+    }
+    InsertionSort(nodeidx_distance, nodeidx_distance.size());
+    int cnt = 0;
+    for (int i = 0; i < g_nodes.size(); ++i) {
+        if (i == max95node_idx) {
+            continue;
+        } else {
+            int idx = cnt++;
+            nodeidx_common[idx].first = nodeidx_distance[idx].first;
+            nodeidx_common[idx].second = common_users_mat[max95node_idx][nodeidx_common[idx].first].common_users.size();
+        }
+    }
+    InsertionSort_form_big_to_small(nodeidx_common, nodeidx_common.size());
+    // 最大优化量
+    int max_optimize_value = node_optimized.pair_history[node_optimized.idx_95].second;
+    int sum_optimize_value = 0;
+    bool done = false;
+    for (int i = 0; i < nodeidx_common.size(); ++i) {
+        // 共同用户为0  无法交换
+        if (nodeidx_common[i].second == 0) {
+            break;
+        }
+        int sum = 0;
+        int now_node_idx = nodeidx_common[i].first;
+        Node &now_node = g_nodes[now_node_idx];
+        int now_node_now_time_cost = now_node.pair_history_unsorted[max95time_idx].second;
+        // 当前时刻成本 > 95 分位， 下一节点
+        int biggest = now_node.pair_percent_95.second - now_node_now_time_cost;
+        if (biggest <= 0) {
+            continue;
+        }
+        vector<int> common = common_users_mat[now_node_idx][max95node_idx].common_users;
+
+        for (int j = 0; j < common.size(); ++j) {
+            int now_user_idx = common[j];
+            // 增大
+            int now_time_node_usr_val = now_time[now_user_idx][now_node_idx];
+            // 减小
+            int now_time_node_usr_val95 = now_time[now_user_idx][max95node_idx];
+            // 变化的值
+            int delta = biggest;
+            // 减小最少到 0
+            if (now_time_node_usr_val95 <= delta) {
+                delta = now_time_node_usr_val95;
+            }
+            // 增大不能超过 95 分位
+            if (sum + delta >= biggest) {
+                break;
+            }
+            // 总优化 不能超过最大优化量
+            if (sum_optimize_value + delta >= max_optimize_value) {
+                done = true;
+                break;
+            }
+            sum_optimize_value += delta;
+            sum += delta;
+            biggest -= delta;
+
+            now_time[now_user_idx][now_node_idx] += delta;
+            now_time[now_user_idx][max95node_idx] -= delta;
+
+            if (biggest <= 0) {
+                break;
+            }
+            // 交换 delta
+
+//            cout << delta << endl;
+
+        }
+        if (done) {
+            break;
+        }
+    }
+
+
+}
 
 int main() {
     struct timeb timeSeed;
@@ -1438,7 +1440,7 @@ int main() {
 //    long long min_cost = LONG_LONG_MAX;
     long long min_cost = compute_cost(g_output);
 //    cout << min_cost << endl;
-    for (int i = 0; i < 40; ++i) {
+    for (int i = 0; i < 25; ++i) {
         g_nodes = temp_g_nodes;
         g_users = temp_g_users;
         g_demand = temp_g_demand;
@@ -1479,10 +1481,10 @@ int main() {
     }
 
 //     客户交集矩阵
-//    vector<vector<Common> > common_users_mat = get_common_users_mat();
-//    for (int i = 0; i < 100; ++i) {
-//        optimize_v2(g_output, common_users_mat);
-//    }
+    vector<vector<Common> > common_users_mat = get_common_users_mat();
+    for (int i = 0; i < 200; ++i) {
+        optimize_v2(g_output, common_users_mat);
+    }
 
 
 
