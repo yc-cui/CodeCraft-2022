@@ -417,8 +417,10 @@ maximize_95plus(vector<int> order, vector<Node> g_nodes, vector<User> g_user, ve
     }
     sort(unit_user_flow.begin(), unit_user_flow.end(), Less);
 
+//    vector<int> order_time = randperm(g_demand.size());
     for (int i = 0; i < g_demand.size(); ++i) {
         int now_time_idx = i;
+//        int now_time_idx = order_time[i];
         // 所有用户
         for (int j = 0; j < g_users.size(); ++j) {
             int now_user_idx = unit_user_flow[j].first;
@@ -985,25 +987,25 @@ vector<vector<vector<int> > > maximize_95plus_v5() {
         else {
             // 计算 单位客户流量
             vector<pair<int, int> > unit_user_flow;
+//            for (int k = 0; k < now_node.available.size(); ++k) {
+//                int now_user_idx = g_users[now_node.available[k]].index;
+//                if (now_node.time_not_available[real_time_idx][now_user_idx] == 0) {
+//                    continue;
+//                }
+//                float unit_flow = g_demand[real_time_idx][now_user_idx] / (g_users[now_user_idx].available.size() -
+//                                                                           g_users[now_user_idx].time_not_available[real_time_idx][135] +
+//                                                                           1);
+//                unit_user_flow.emplace_back(make_pair(now_user_idx, unit_flow));
+//            }
+//            // 对其由大到小排序
+//            sort(unit_user_flow.begin(), unit_user_flow.end(), Great);
+            // 计算 客户在当前时刻候选边缘节点的个数由小到大排序
             for (int k = 0; k < now_node.available.size(); ++k) {
                 int now_user_idx = g_users[now_node.available[k]].index;
-                if (now_node.time_not_available[real_time_idx][now_user_idx] == 0) {
-                    continue;
-                }
-                float unit_flow = g_demand[real_time_idx][now_user_idx] / (g_users[now_user_idx].available.size() -
-                                                                           g_users[now_user_idx].time_not_available[real_time_idx][135] +
-                                                                           1);
-                unit_user_flow.emplace_back(make_pair(now_user_idx, unit_flow));
+                int ava = g_users[now_user_idx].available.size();
+                unit_user_flow.emplace_back(make_pair(now_user_idx, ava));
             }
-            // 对其由大到小排序
-            sort(unit_user_flow.begin(), unit_user_flow.end(), Great);
-            // 计算 客户在当前时刻候选边缘节点的个数由小到大排序
-//                    for (int k = 0; k < now_node.available.size(); ++k) {
-//                        int now_user_idx = g_users[now_node.available[k]].index;
-//                        int ava = g_users[now_user_idx].available.size();
-//                        unit_user_flow.emplace_back(make_pair(now_user_idx, ava));
-//                    }
-//                    sort(unit_user_flow.begin(), unit_user_flow.end(), Less);
+            sort(unit_user_flow.begin(), unit_user_flow.end(), Less);
             // 依次选择客户
             for (int k = 0; k < unit_user_flow.size(); ++k) {
                 // 当前用户下标
@@ -1215,9 +1217,7 @@ vector<vector<vector<int> > > maximize_95plus_v5() {
 
 }
 
-void optimize_v2(vector<vector<vector<int> > > &output) {
 
-}
 
 //void run(bool show_time = false) {
 //    if (show_time) {
@@ -1265,12 +1265,158 @@ GetSumT(vector<Node> g_nodes, vector<User> g_user, vector<vector<int> > g_demand
     struct timeb timeSeed;
     ftime(&timeSeed);
     srand(timeSeed.time * 1000 + timeSeed.millitm);
+    delay(50 + random(2, 10));
     vector<int> order_nodes = randperm(g_nodes.size());
     output = maximize_95plus(order_nodes, g_nodes, g_user, g_demand);
     cost = compute_cost(output);
 
 }
 
+vector<vector<Common> > get_common_users_mat() {
+    // 客户交集矩阵
+    vector<vector<Common> > common_users_mat(g_nodes.size(), vector<Common>(g_nodes.size(), Common()));
+    for (int m = 0; m < g_nodes.size(); ++m) {
+        for (int i = 0; i < g_nodes.size(); ++i) {
+            if (m <= i) {
+                vector<int> common_users;
+                set_intersection(g_nodes[m].available.begin(), g_nodes[m].available.end(),
+                                 g_nodes[i].available.begin(), g_nodes[i].available.end(),
+                                 back_inserter(common_users));
+                common_users_mat[m][i] = Common(common_users);
+            } else {
+                common_users_mat[m][i] = common_users_mat[i][m];
+            }
+        }
+    }
+    g_common_users_mat = common_users_mat;
+    return common_users_mat;
+}
+
+//void optimize_v2(vector<vector<vector<int> > > &output, vector<vector<Common> > common_users_mat) {
+//    for (int l = 0; l < output.size(); ++l) {
+//        for (int i = 0; i < g_nodes.size(); ++i) {
+//            int sum = 0;
+//            for (int j = 0; j < g_users.size(); ++j) {
+//                sum += output[l][j][i];
+//            }
+//            if (g_nodes[i].pair_history.size() != output.size()) {
+//                g_nodes[i].pair_history.emplace_back(make_pair(l, sum));
+//            } else {
+//                g_nodes[i].pair_history[l] = make_pair(l, sum);
+//            }
+//
+//        }
+//    }
+//    // 找出95分位最大的优化
+//    int max95node_idx = -1;
+//    int max95val = -1;
+//    int max95time_idx = -1;
+//    for (int i = 0; i < g_nodes.size(); ++i) {
+//        g_nodes[i].pair_history_unsorted = g_nodes[i].pair_history;
+//        pair<int, int> val = g_nodes[i].get_95_pair();
+//        if (val.second > max95val) {
+//            max95val = val.second;
+//            max95node_idx = i;
+//            max95time_idx = val.first;
+//        }
+//    }
+//    // 待优化节点
+//    Node &node_optimized = g_nodes[max95node_idx];
+//    vector<vector<int> > &now_time = output[max95time_idx];
+//    vector<pair<int, int> > nodeidx_distance;
+//    vector<pair<int, int> > nodeidx_common;
+//    for (int i = 0; i < g_nodes.size(); ++i) {
+//        if (i == max95node_idx) {
+//            continue;
+//        } else {
+//            int now_node_idx = i;
+//            Node &now_node = g_nodes[now_node_idx];
+//            int distance = 0;
+//            for (int j = 0; j < output.size(); ++j) {
+//                if (now_node.pair_history[j].first == max95time_idx) {
+//                    break;
+//                } else {
+//                    distance++;
+//                }
+//            }
+//            // distance 越小越好， common 越大越好
+//            nodeidx_distance.emplace_back(make_pair(now_node_idx, distance));
+//            nodeidx_common.emplace_back(make_pair(now_node_idx, 0));
+//        }
+//    }
+//    InsertionSort(nodeidx_distance, nodeidx_distance.size());
+//    for (int i = 0; i < g_nodes.size(); ++i) {
+//        if (i == max95node_idx) {
+//            continue;
+//        } else {
+//            nodeidx_common[i].first = nodeidx_distance[i].first;
+//            nodeidx_common[i].second = common_users_mat[max95node_idx][nodeidx_common[i].first].common_users.size();
+//        }
+//    }
+//    InsertionSort_form_big_to_small(nodeidx_common, nodeidx_common.size());
+//    // 最大优化量
+//    int max_optimize_value = node_optimized.pair_history[node_optimized.idx_95].second;
+//    int sum_optimize_value = 0;
+//    bool done = false;
+//    for (int i = 0; i < nodeidx_common.size(); ++i) {
+//        // 共同用户为0  无法交换
+//        if (nodeidx_common[i].second == 0) {
+//            break;
+//        }
+//        int sum = 0;
+//        int now_node_idx = nodeidx_common[i].first;
+//        Node &now_node = g_nodes[now_node_idx];
+//        int now_node_now_time_cost = now_node.pair_history_unsorted[max95time_idx].second;
+//        // 当前时刻成本 > 95 分位， 下一节点
+//        int biggest = now_node.pair_percent_95.second - now_node_now_time_cost;
+//        if (biggest <= 0) {
+//            continue;
+//        }
+//        vector<int> common = common_users_mat[now_node_idx][max95node_idx].common_users;
+//
+//        for (int j = 0; j < common.size(); ++j) {
+//            int now_user_idx = common[j];
+//            // 增大
+//            int now_time_node_usr_val = now_time[now_user_idx][now_node_idx];
+//            // 减小
+//            int now_time_node_usr_val95 = now_time[now_user_idx][max95node_idx];
+//            // 变化的值
+//            int delta = biggest;
+//            // 减小最少到 0
+//            if (now_time_node_usr_val95 <= delta) {
+//                delta = now_time_node_usr_val95;
+//            }
+//            // 增大不能超过 95 分位
+//            if (sum + delta >= biggest) {
+//                break;
+//            }
+//            // 总优化 不能超过最大优化量
+//            if (sum_optimize_value + delta >= max_optimize_value) {
+//                done = true;
+//                break;
+//            }
+//            sum_optimize_value += delta;
+//            sum += delta;
+//            biggest -= delta;
+//
+//            now_time[now_user_idx][now_node_idx] += delta;
+//            now_time[now_user_idx][max95node_idx] -= delta;
+//
+//            if (biggest <= 0) {
+//                break;
+//            }
+//            // 交换 delta
+//
+////            cout << delta << endl;
+//
+//        }
+//        if (done) {
+//            break;
+//        }
+//    }
+//
+//
+//}
 
 int main() {
     struct timeb timeSeed;
@@ -1288,27 +1434,31 @@ int main() {
     vector<Node> temp_g_nodes = g_nodes;
     vector<User> temp_g_users = g_users;
     vector<vector<int> > temp_g_demand = g_demand;
-    //  g_output = run_thread();
-    long long min_cost = LONG_LONG_MAX;
+    g_output = maximize_95plus_v4();
+//    long long min_cost = LONG_LONG_MAX;
+    long long min_cost = compute_cost(g_output);
 //    cout << min_cost << endl;
-    for (int i = 0; i < 45; ++i) {
+    for (int i = 0; i < 40; ++i) {
         g_nodes = temp_g_nodes;
         g_users = temp_g_users;
         g_demand = temp_g_demand;
-//        vector<vector<vector<int> > > output = run_thread();
-//        long long cost = compute_cost(output);
+
         vector<vector<vector<int> > > result1, result2, result3, result4;
         long long cost1, cost2, cost3, cost4;
         thread first(GetSumT, g_nodes, g_users, g_demand, std::ref(result1), std::ref(cost1)); //子线程1
+        delay(1000);
         thread second(GetSumT, g_nodes, g_users, g_demand, std::ref(result2), std::ref(cost2)); //子线程1
+        delay(1000);
         thread third(GetSumT, g_nodes, g_users, g_demand, std::ref(result3), std::ref(cost3)); //子线程1
+        delay(1000);
         thread fouth(GetSumT, g_nodes, g_users, g_demand, std::ref(result4), std::ref(cost4)); //子线程1
+        delay(1000);
 
-        first.join(); //主线程要等待子线程执行完毕
+        first.join();
         second.join();
         third.join();
         fouth.join();
-//        cout << cost << endl;
+
         if (cost1 < min_cost) {
             min_cost = cost1;
             g_output = result1;
@@ -1325,8 +1475,15 @@ int main() {
             min_cost = cost4;
             g_output = result4;
         }
-//        cout << endl << i << " " << min_cost << " " << cost1  << " " << cost2  << " " << cost3  << " " << cost4  << endl;
+//        cout << endl << i << " " << min_cost << " " << cost1 << " " << cost2 << " " << cost3 << " " << cost4 << endl;
     }
+
+//     客户交集矩阵
+//    vector<vector<Common> > common_users_mat = get_common_users_mat();
+//    for (int i = 0; i < 100; ++i) {
+//        optimize_v2(g_output, common_users_mat);
+//    }
+
 
 
     prt(g_output);

@@ -253,8 +253,9 @@ public:
         this->common_users = common.common_users;
     }
 
-    const Common &operator=(const Common &common) {
+    Common &operator=(const Common &common) {
         this->common_users = common.common_users;
+        return *this;
     }
 };
 
@@ -396,4 +397,3 @@ void delay(int time) {
     clock_t now = clock();
     while (clock() - now < time);
 }
-
